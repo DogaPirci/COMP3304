@@ -1,35 +1,58 @@
-# COMP3304
-VogueVault Online Closet
-## 1. Project Overview
-VogueVault is an AI-powered digital wardrobe management system designed to bridge the gap between physical closets and digital convenience. Research shows that people spend an average of 17 minutes every morning deciding what to wear, often leading to "decision fatigue" and overconsumption of fast fashion.
-VogueVault solves these problems by creating a personalised digital twin of a user's wardrobe. Leveraging the power of the Google Gemini Vision API, the system automatically categorises uploaded clothing items, suggests outfits based on specific dress codes, and helps users make more sustainable fashion choices.
-Users can upload a photo of any clothing item and let the AI classify it instantly  no manual tagging required. When a specific event or dress code comes up, VogueVault filters the wardrobe and generates outfit combinations tailored to the occasion. For users who find inspiration in runway looks or social media posts, the AI Style Matcher finds the closest matches from their own wardrobe, reducing the urge to buy new items.
-When a required piece is genuinely missing, the Smart Commerce Integration  powered by the Google Custom Search API — surfaces real product recommendations with images and direct purchase links from online retailers. Every search result is cached to minimise API usage and ensure a fast experience.
-Built with Next.js, Supabase, and deployed as a single Docker container on Railway.app, VogueVault is designed to be lightweight, maintainable, and ready to scale — developed by a four-person student team as part of COMP 3304 Fundamentals of Software Engineering at Yasar University.
+#  VogueVault: AI-Powered Online Closet
+
+**VogueVault**, fiziksel gardıroplar ile dijital kolaylık arasındaki boşluğu kapatmak için tasarlanmış, yapay zeka destekli bir dijital gardırop yönetim sistemidir.
+
+---
+
+##  1. Project Overview
+VogueVault, kullanıcının fiziksel gardırobunun kişiselleştirilmiş bir "dijital ikizini" oluşturur. **Google Gemini Vision API**'nin gücünden yararlanan sistem (özel model eğitimine gerek duymadan zero-shot sınıflandırma kullanarak), yüklenen giyim eşyalarını otomatik olarak kategorize eder, belirli kıyafet kodlarına göre kombinler önerir ve kullanıcıların daha sürdürülebilir moda seçimleri yapmasına yardımcı olur.
+
+### The Core Problems We Solve:
+* **Decision Fatigue:** Kullanıcılar, özellikle moda normlarına aşina olmayanlar, "Smart Casual" gibi soyut kıyafet kodlarını kendi sahip oldukları eşyalarla somut kombinlere dönüştürmekte zorlanırlar.
+* **Wardrobe Invisibility:** Fiziksel gardıroplar genellikle düzensizdir; aylar önce satın alınan ürünler kolayca unutulur ve kullanıcıların gerçekte neye sahip olduklarını hatırlamalarını zorlaştırır.
+* **Inefficient Shopping:** Kullanıcılar, alışveriş yaparken mevcut gardıroplarını hatırlamadıkları için halihazırda sahip oldukları veya çok benzer ürünleri sıklıkla satın alırlar.
 
 ### Key Objectives:
-* **Reduce Decision Fatigue:** Help users quickly translate abstract dress codes (like Smart Casual or Formal) into concrete outfits from their own collection.
-* **Promote Sustainability:** Increase the utility of existing clothes to discourage unnecessary new purchases.
-* **Smart Organization:** Automatically tag and sort items by category, colour, and style without manual data entry.
-* **Visual Inspiration:** Allow users to upload "inspiration photos" and find the closest matching items within their own digital closet.
+* **Reduce Decision Fatigue:** Soyut kıyafet kodlarını kendi koleksiyonlarından somut kombinlere dönüştürmelerine yardımcı olmak.
+* **Promote Sustainability:** Gereksiz yeni satın alımları caydırmak ve döngüsel ekonomi yaklaşımını teşvik etmek için mevcut kıyafetlerin kullanımını artırmak.
+* **Smart Organization:** Manuel veri girişi olmadan ürünleri kategori, renk ve stile göre otomatik olarak etiketlemek ve sıralamak.
+* **Visual Inspiration:** Kullanıcıların "ilham fotoğrafları" yüklemelerine ve kendi dijital dolapları içinde en yakın eşleşen ürünleri bulmalarına olanak tanımak.
 
-## 2. Key Features
-* *Digital Closet Management:* Upload clothing photos and automatically categorise them using AI.
-* *Intelligent Concept Stylist:* Receive outfit recommendations based on specific events and dress codes (e.g., Smart Casual, Formal).
-* *AI Visual Style Matcher:* Upload an inspiration photo to find visually matching items from your own wardrobe.
-* *Smart Commerce Integration:* Detect missing items in an outfit and get real product recommendations with direct purchase links.
+---
 
-## 3. Technologies Used
-* *Frontend & API:* Next.js (React) and Tailwind CSS
-* *Database & Auth:* Supabase (PostgreSQL)
-* *AI & Search:* Google Gemini Vision API, Google Custom Search API
-* *Deployment:* Docker and Railway.app
-* 
-## 4. Team Information
-* *Team:* ModaByte
-* *Members:* Doga Pirci, Selin Sermet, Asli Goktalay, Arda Ceran
-* *Course:* COMP 3304 — Fundamentals of Software Engineering
-* *Instructor:* Dr. Suphi Ucar
+##  2. Key Features
+* **Digital Closet Management:** Kıyafet fotoğraflarını yükleyin ve AI kullanarak otomatik olarak kategorize edin. AI güven puanı eşiğin altına düşerse manuel kategori düzeltme özelliğini içerir.
+* **Intelligent Concept Stylist:** AI görsel muhakemesini kullanarak belirli etkinliklere ve kıyafet kodlarına (örneğin, Smart Casual, Resmi) dayalı birden fazla kıyafet önerisi alın.
+* **AI Visual Style Matcher:** Bir stil tanımlayıcı oluşturmak ve kendi gardırobunuzdan görsel olarak eşleşen ürünleri bulmak için bir ilham fotoğrafı yükleyin.
+* **Smart Commerce Integration:** Bir kombindeki eksik parçaları tespit edin ve yetkisiz veri kazıma (scraping) yapmadan, doğrudan satın alma bağlantılarıyla gerçek ürün önerileri alın.
+* **Secure User Authentication:** Supabase Auth kullanarak özel ve güvenli gardırop verisi yönetimi.
 
+---
 
+##  3. System Architecture & Software Engineering
+Uygulamanın sağlam ve bakımı yapılabilir olmasını sağlamak için VogueVault modern yazılım mühendisliği ilkelerine sıkı sıkıya bağlıdır:
 
+* **Layered (N-Tier) Architecture:** Sistem; Sunum, İş Mantığı, AI & Dış Servisler ve Veri & Altyapı katmanlarına ayrılmıştır. Bu; modülerlik yoluyla basitlik, çeviklik ve gelecekteki ölçeklendirme için hazırlık sağlar.
+* **Factory Method Design Pattern:** Özellikle Dijital Dolap Yönetimi modülünde uygulanmıştır. Gemini Vision API bir görüntüyü sınıflandırdığında, bir `DigitalClosetFactory` dinamik olarak doğru nesneyi (örneğin, Gömlek, Pantolon, Ayakkabı) somutlaştırır. Bu, API rota işleyicisini somut kıyafet sınıflarından ayırarak karmaşık if/else zincirlerini ortadan kaldırır.
+
+---
+
+##  4. Technologies Used
+| Category | Technology |
+| :--- | :--- |
+| **Frontend & API** | Next.js (React) and Tailwind CSS |
+| **Database & Auth** | Supabase (PostgreSQL, Auth, and Storage) |
+| **AI & Search** | Google Gemini Vision API & Google Custom Search API |
+| **Deployment** | Docker and Railway.app |
+
+---
+
+##  5. Team Information
+**Team Name:** ModaByte  
+**Course:** COMP 3304 — Fundamentals of Software Engineering  
+**Instructor:** Dr. Suphi Ucar
+
+* **Doga Pirci**
+* **Selin Sermet**
+* **Asli Goktalay**
+* **Arda Ceran**
