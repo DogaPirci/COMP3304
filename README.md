@@ -1,10 +1,10 @@
-# 👗 VogueVault: AI-Powered Online Closet
+#  VogueVault: AI-Powered Online Closet
 
 **VogueVault** is an AI-powered digital wardrobe management system designed to bridge the gap between physical closets and digital convenience.
 
 ---
 
-## 🚀 1. Project Overview
+##  1. Project Overview
 VogueVault creates a personalised digital twin of a user's physical wardrobe. Leveraging the power of the **Google Gemini Vision API** (using zero-shot classification without the need for custom model training), the system automatically categorises uploaded clothing items, suggests outfits based on specific dress codes, and helps users make more sustainable fashion choices.
 
 ### The Core Problems We Solve:
@@ -20,7 +20,7 @@ VogueVault creates a personalised digital twin of a user's physical wardrobe. Le
 
 ---
 
-## ✨ 2. Key Features
+##  2. Key Features
 * **Digital Closet Management:** Upload clothing photos and automatically categorise them using AI. Includes a manual correction feature if the AI's confidence score is low.
 * **Intelligent Concept Stylist:** Receive multiple outfit recommendations based on specific events and dress codes using AI visual reasoning.
 * **AI Visual Style Matcher:** Upload an inspiration photo to generate a style descriptor and find visually matching items from your own wardrobe.
@@ -29,7 +29,7 @@ VogueVault creates a personalised digital twin of a user's physical wardrobe. Le
 
 ---
 
-## 🏗️ 3. System Architecture & Software Engineering
+##  3. System Architecture & Software Engineering
 To ensure the application is robust and maintainable, VogueVault strictly adheres to modern software engineering principles:
 
 * **Layered (N-Tier) Architecture:** The system is divided into Presentation, Business Logic, AI & External Services, and Data & Infrastructure layers for modularity and scalability.
@@ -37,7 +37,7 @@ To ensure the application is robust and maintainable, VogueVault strictly adhere
 
 ---
 
-## 🛠️ 4. Technologies Used
+##  4. Technologies Used
 | Category | Technology |
 | :--- | :--- |
 | **Frontend & API** | Next.js (React) and Tailwind CSS |
@@ -47,7 +47,7 @@ To ensure the application is robust and maintainable, VogueVault strictly adhere
 
 ---
 
-## 👥 5. Team Information
+##  5. Team Information
 **Team:** ModaByte  
 **Course:** COMP 3304 — Fundamentals of Software Engineering  
 **Instructor:** Dr. Suphi Ucar
