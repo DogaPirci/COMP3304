@@ -4,4 +4,4 @@ VogueVault Online Closet
 * *Team:* ModaByte
 * *Members:* Doga Pirci, Selin Sermet, Asli Goktalay, Arda Ceran
 * *Course:* COMP 3304 — Fundamentals of Software Engineering
-* *Instructor:* Dr. Suphi Ucar.
+* *Instructor:* Dr. Suphi Ucar
