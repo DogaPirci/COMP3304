@@ -459,7 +459,7 @@ function VogueVaultDashboard({ session }: { session: Session }) {
 
         <div className="pt-8 border-t border-black/5 dark:border-white/5">
           <div 
-             onClick={() => supabase.auth.signOut()}
+             onClick={async () => { await supabase.auth.signOut(); window.location.reload(); }}
              className="flex items-center gap-3 p-3 rounded-xl hover:bg-red-600/10 transition-colors cursor-pointer group"
              title="Sign Out"
           >
