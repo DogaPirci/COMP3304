@@ -16,48 +16,59 @@ export class GeminiService {
         this.genAI = new GoogleGenerativeAI(apiKey);
     }
 
+    private readonly MODELS_TO_TRY = ['gemini-2.0-flash', 'gemini-flash-latest', 'gemini-2.5-flash'];
+
     public async classifyImage(imageBase64: string): Promise<ImageClassificationResult> {
-        try {
-            // Initialize the specifically requested model
-            const model = this.genAI.getGenerativeModel({ model: 'gemini-2.5-flash-lite' });
-            
-            const prompt = `Classify this clothing item into a primary category. Provide a confidence level between 0 and 1. Return ONLY valid JSON in the format: {"category": "string", "confidence": 0.0}`;
+        let lastError: any = null;
 
-            // Handle base64 string safely if it contains data URI prefix
-            const base64Data = imageBase64.includes(',') ? imageBase64.split(',')[1] : imageBase64;
-
-            const imagePart = {
-                inlineData: {
-                    data: base64Data,
-                    mimeType: 'image/jpeg' // Generic fallback, depends on frontend implementation
+        for (const modelName of this.MODELS_TO_TRY) {
+            try {
+                const model = this.genAI.getGenerativeModel({ model: modelName });
+                
+                const base64Data = imageBase64.includes(',') ? imageBase64.split(',')[1] : imageBase64;
+                let mimeType = 'image/jpeg';
+                if (imageBase64.startsWith('data:')) {
+                    const match = imageBase64.match(/^data:([^;]+);base64,/);
+                    if (match) mimeType = match[1];
                 }
-            };
 
-            const result = await model.generateContent([prompt, imagePart]);
-            const responseText = result.response.text();
-            
-            // Extract the JSON block specifically to avoid markdown formatting issues
-            const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-            if (!jsonMatch) {
-                throw new Error("Failed to parse JSON from generative AI response.");
+                console.log(`Gemini SDK Request: Model=${modelName}, MimeType=${mimeType}`);
+
+                const prompt = "Classify this clothing item into a primary category: Outerwear, Tops, Bottoms, Shoes, or Accessories. Provide a confidence level between 0 and 1. Return ONLY valid JSON in the format: {\"category\": \"string\", \"confidence\": 0.0}";
+                const imagePart = { inlineData: { data: base64Data, mimeType } };
+
+                const result = await model.generateContent([prompt, imagePart]);
+                const responseText = result.response.text();
+                
+                console.log(`Gemini SDK Response (${modelName}):`, responseText);
+
+                const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+                if (!jsonMatch) throw new Error("Failed to parse JSON from AI response.");
+                const parsed = JSON.parse(jsonMatch[0]);
+
+                return {
+                    category: parsed.category || "Unknown",
+                    confidence: typeof parsed.confidence === 'number' ? parsed.confidence : 0,
+                };
+            } catch (error: any) {
+                console.error(`Gemini Error with ${modelName}:`, error.message);
+                lastError = error;
+                if (error.message.includes('404')) continue; // Try next model if 404
+                if (error.message.includes('429')) continue; // Try next model if 429
+                break; // Stop for other errors
             }
-            
-            const parsed = JSON.parse(jsonMatch[0]);
-
-            return {
-                category: parsed.category || "Unknown",
-                confidence: typeof parsed.confidence === 'number' ? parsed.confidence : 0,
-            };
-        } catch (error) {
-            console.error('Error in GeminiService.classifyImage:', error);
-            throw error;
         }
+        
+        throw new Error(`Gemini API failed after trying all models. Last error: ${lastError?.message}`);
     }
 
     public async analyzeInspirationImage(imageBase64: string, dressCode: string, closetMetadata: string): Promise<any> {
-        try {
-            const model = this.genAI.getGenerativeModel({ model: 'gemini-2.5-flash-lite' });
-            const prompt = `You are a professional fashion stylist. Analyze the inspiration photo for a ${dressCode} outfit.
+        let lastError: any = null;
+
+        for (const modelName of this.MODELS_TO_TRY) {
+            try {
+                const model = this.genAI.getGenerativeModel({ model: modelName });
+                const prompt = `You are a professional fashion stylist. Analyze the inspiration photo for a ${dressCode} outfit.
 The user has the following clothing items in their digital closet:
 ${closetMetadata}
 
@@ -81,19 +92,24 @@ Return ONLY a valid JSON object strictly matching this schema:
 }
 Do NOT include markdown block ticks. Your response must be purely parseable JSON.`;
 
-            const base64Data = imageBase64.includes(',') ? imageBase64.split(',')[1] : imageBase64;
-            const imagePart = { inlineData: { data: base64Data, mimeType: 'image/jpeg' } };
+                const base64Data = imageBase64.includes(',') ? imageBase64.split(',')[1] : imageBase64;
+                const imagePart = { inlineData: { data: base64Data, mimeType: 'image/jpeg' } };
 
-            const result = await model.generateContent([prompt, imagePart]);
-            const text = result.response.text();
-            
-            const jsonMatch = text.match(/\{[\s\S]*\}/);
-            if (!jsonMatch) throw new Error("Failed to parse JSON from AI response.");
-            
-            return JSON.parse(jsonMatch[0]);
-        } catch (error) {
-            console.error('Error in GeminiService.analyzeInspirationImage:', error);
-            throw error;
+                const result = await model.generateContent([prompt, imagePart]);
+                const text = result.response.text();
+                
+                const jsonMatch = text.match(/\{[\s\S]*\}/);
+                if (!jsonMatch) throw new Error("Failed to parse JSON from AI response.");
+                
+                return JSON.parse(jsonMatch[0]);
+            } catch (error: any) {
+                console.error(`Gemini Error with ${modelName}:`, error.message);
+                lastError = error;
+                if (error.message.includes('404') || error.message.includes('429')) continue;
+                break;
+            }
         }
+        
+        throw new Error(`Gemini API failed after trying all models. Last error: ${lastError?.message}`);
     }
 }

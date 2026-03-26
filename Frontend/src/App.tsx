@@ -31,7 +31,7 @@ type Category = "Outerwear" | "Tops" | "Bottoms" | "Shoes" | "Accessories";
 
 // Configure your base API URL here. 
 // Uses environment variable if available, otherwise defaults to local Express server.
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || (import.meta as any).env?.VITE_API_URL || 'http://localhost:5000';
+const API_BASE_URL = ''; // Same-origin relative path for Docker deployment
 
 interface ClothingItem {
   id: string;

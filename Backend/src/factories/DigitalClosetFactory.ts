@@ -79,31 +79,34 @@ export class DigitalClosetFactory {
 
         // Map various possible string classifications to their concrete TS classes
         switch (normalizedClassification) {
+            case 'tops':
+            case 'top':
             case 'shirt':
             case 't-shirt':
             case 'tshirt':
             case 'blouse':
-            case 'top':
                 return new Shirt();
+            case 'bottoms':
             case 'trouser':
             case 'trousers':
             case 'pants':
             case 'jeans':
                 return new Trouser();
-            case 'shoe':
             case 'shoes':
+            case 'shoe':
             case 'sneaker':
             case 'sneakers':
             case 'boots':
                 return new Shoe();
-            case 'dress':
-            case 'skirt': // Assuming skirt falls under the dress category for this demo
-                return new Dress();
+            case 'outerwear':
             case 'jacket':
             case 'coat':
             case 'hoodie':
             case 'sweater':
-                return new Jacket();
+            case 'dress':
+            case 'skirt':
+                return new Dress();
+            case 'accessories':
             case 'accessory':
             case 'watch':
             case 'belt':
