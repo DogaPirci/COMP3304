@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { 
+  Trash2,
   LayoutGrid, 
   Sparkles, 
   ShoppingBag, 
@@ -736,9 +737,24 @@ function ClosetView({ closet, setCloset, selectedFilter, setSelectedFilter }: {
                       {categories.map(c => <option key={c} value={c}>{c}</option>)}
                     </select>
                   </div>
-                  <div className="mt-4">
-                    <h4 className="font-bold text-sm uppercase tracking-tight truncate">{item.name}</h4>
-                    <p className="text-[10px] text-red-500 font-black uppercase tracking-widest mt-1">AI Verified</p>
+                  <div className="mt-4 flex items-start justify-between">
+                    <div className="flex-1 overflow-hidden pr-2">
+                      <h4 className="font-bold text-sm uppercase tracking-tight truncate">{item.name}</h4>
+                      <p className="text-[10px] text-red-500 font-black uppercase tracking-widest mt-1">AI Verified</p>
+                    </div>
+                    <button 
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        if (window.confirm("Bu kıyafeti gardırobunuzdan silmek istediğinize emin misiniz?")) {
+                          await supabase.from('closet_items').delete().eq('id', item.id);
+                          setCloset(prev => prev.filter(i => i.id !== item.id));
+                        }
+                      }}
+                      className="text-black/40 dark:text-white/40 hover:text-red-600 transition-colors p-1 shrink-0"
+                      title="Sil"
+                    >
+                      <Trash2 size={16} />
+                    </button>
                   </div>
                 </motion.div>
               ))}
