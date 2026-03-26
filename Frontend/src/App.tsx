@@ -277,9 +277,9 @@ function VogueVaultDashboard({ session }: { session: Session }) {
              const { data: urlData } = supabase.storage.from('closet-images').getPublicUrl(fileName);
              publicUrl = urlData.publicUrl;
           } else {
-             console.warn("Storage upload failed, please create bucket 'closet-images'. Using local URL.");
+             alert(`Storage Hatası: ${uploadError.message} (bucket: closet-images)`);
           }
-        } catch(storageErr) { console.error(storageErr); }
+        } catch(storageErr: any) { alert(`Hata: ${storageErr.message}`); }
 
         const confidenceValue = data.item_data.confidence ? `${(data.item_data.confidence * 100).toFixed(0)}%` : "100%";
         const dbItem = {
@@ -325,8 +325,10 @@ function VogueVaultDashboard({ session }: { session: Session }) {
         if (!uploadError) {
            const { data: urlData } = supabase.storage.from('closet-images').getPublicUrl(fileName);
            publicUrl = urlData.publicUrl;
+        } else {
+           alert(`Storage Hatası: ${uploadError.message}`);
         }
-      } catch(e) {}
+      } catch(storageErr: any) { alert(`Hata: ${storageErr.message}`); }
 
       const dbItem = {
         user_id: session.user.id,
