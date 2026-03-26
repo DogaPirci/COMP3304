@@ -1,0 +1,25 @@
+# Dependencies
+node_modules
+npm-debug.log
+yarn-error.log
+
+# Build outputs
+Frontend/dist
+Frontend/build
+Frontend/out
+Frontend/.next
+Backend/dist
+
+# Environment variables and secrets
+.env
+.env.local
+.env.development
+.env.production
+
+# Git
+.git
+.gitignore
+
+# OS generated files
+.DS_Store
+Thumbs.db

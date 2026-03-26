@@ -1,0 +1,4 @@
+@import "tailwindcss";
+
+/* Allow manual 'class' strategy toggling for Dark Mode in Tailwind v4 */
+@custom-variant dark (&:is(.dark *));
