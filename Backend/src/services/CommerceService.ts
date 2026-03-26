@@ -32,33 +32,46 @@ export class CommerceService {
             }
 
             const data = await response.json();
-            if (!data.items) {
+            if (!data.items || data.items.length === 0) {
+                console.log('No products found for query:', searchQuery);
                 return [];
             }
 
-            return data.items.map((item: any): ProductRecommendation => {
-                // Price isn't deeply structured by default in Image Search unless you parse pagemap data.
-                // Depending on the Custom Search settings, it could be available in item.pagemap.offer[0].price.
-                const pagemap = item.pagemap || {};
-                const offer = pagemap.offer && pagemap.offer.length > 0 ? pagemap.offer[0] : null;
-                let priceValue = offer && offer.price ? `${offer.priceCurrency || '$'}${offer.price}` : 'Check Website';
+            const processedItems = data.items.map((item: any): ProductRecommendation | null => {
+                try {
+                    const pagemap = item.pagemap || {};
+                    const offer = pagemap.offer && pagemap.offer.length > 0 ? pagemap.offer[0] : null;
+                    let priceValue = offer && offer.price ? `${offer.priceCurrency || '$'}${offer.price}` : 'Check Website';
 
-                if (priceValue.includes('%') || priceValue.toLowerCase().includes('off')) {
-                    priceValue = 'Check Website';
+                    if (priceValue.includes('%') || priceValue.toLowerCase().includes('off')) {
+                        priceValue = 'Check Website';
+                    }
+
+                    const purchaseUrl = item.image?.contextLink || item.link || '';
+                    let source = item.displayLink;
+                    if (!source && purchaseUrl) {
+                        try { source = new URL(purchaseUrl).hostname; } catch(e) { source = 'External Store'; }
+                    }
+
+                    return {
+                        title: item.title || 'Unknown Product',
+                        image_url: item.link || '', 
+                        purchase_url: purchaseUrl, 
+                        price: priceValue,
+                        source: source || 'External'
+                    };
+                } catch (mapError) {
+                    console.error('Error processing individual product item:', mapError);
+                    return null;
                 }
+            }).filter((item: any) => item !== null) as ProductRecommendation[];
 
-                return {
-                    title: item.title,
-                    image_url: item.link, 
-                    purchase_url: item.image?.contextLink || item.link, 
-                    price: priceValue,
-                    source: item.displayLink || new URL(item.image?.contextLink || item.link || 'http://unknown.com').hostname
-                };
-            });
+            return processedItems;
 
         } catch (error) {
             console.error('API Error in CommerceService:', error instanceof Error ? error.message : error);
-            throw new Error('Google Custom Search API Key is missing or rejected the request. Please provide valid keys in Backend/.env!');
+            // Don't throw a generic error that obscures the real issue
+            throw error;
         }
     }
 }

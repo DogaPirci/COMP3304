@@ -4,6 +4,11 @@
 
 ---
 
+> [!TIP]
+> **New to the project?** Read our [Simple System Explainer](SYSTEM_EXPLAINER.md) to understand how the Frontend, Backend, and AI work together in plain English!
+
+---
+
 ##  1. Project Overview
 VogueVault creates a personalised digital twin of a user's physical wardrobe. Leveraging the power of the **Google Gemini Vision API** (using zero-shot classification without the need for custom model training), the system automatically categorises uploaded clothing items, suggests outfits based on specific dress codes, and helps users make more sustainable fashion choices.
 

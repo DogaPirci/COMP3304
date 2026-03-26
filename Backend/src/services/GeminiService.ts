@@ -2,6 +2,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 
 export interface ImageClassificationResult {
     category: string;
+    name: string;
     confidence: number;
 }
 
@@ -34,7 +35,7 @@ export class GeminiService {
 
                 console.log(`Gemini SDK Request: Model=${modelName}, MimeType=${mimeType}`);
 
-                const prompt = "Classify this clothing item into a primary category: Outerwear, Tops, Bottoms, Shoes, or Accessories. Provide a confidence level between 0 and 1. Return ONLY valid JSON in the format: {\"category\": \"string\", \"confidence\": 0.0}";
+                const prompt = "Classify this clothing item into a primary category: Outerwear, Tops, Bottoms, Shoes, or Accessories. Also, provide a brief, descriptive name for the item (e.g., 'Black Denim Jacket' or 'White Silk Blouse'). Provide a confidence level between 0 and 1. Return ONLY valid JSON in the format: {\"category\": \"string\", \"name\": \"string\", \"confidence\": 0.0}";
                 const imagePart = { inlineData: { data: base64Data, mimeType } };
 
                 const result = await model.generateContent([prompt, imagePart]);
@@ -48,6 +49,7 @@ export class GeminiService {
 
                 return {
                     category: parsed.category || "Unknown",
+                    name: parsed.name || "Clothing Item",
                     confidence: typeof parsed.confidence === 'number' ? parsed.confidence : 0,
                 };
             } catch (error: any) {

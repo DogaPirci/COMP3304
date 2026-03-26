@@ -1,6 +1,16 @@
 # Vogue Vault - Frontend
 
-This is the React / Next.js frontend UI for the Vogue Vault digital twin and smart commerce application.
+This is the **Waiter** of our application. 
+
+### 🤵 Simple Explanation (What does this do?)
+Imagine a restaurant:
+1.  The **Frontend** is the **Waiter**. It's the face of the restaurant.
+2.  It shows the menu (UI) and takes the user's order (Button clicks).
+3.  It doesn't "cook" anything itself. It just sends the order to the **Backend (Kitchen)**.
+4.  Once the Kitchen is done, the Waiter brings the "Meal" (Data) back to the table and displays it beautifully for the user.
+
+---
+ digital twin and smart commerce application.
 
 ## Prerequisites
 - Node.js (v18+)

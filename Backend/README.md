@@ -1,6 +1,16 @@
 # Vogue Vault - Backend
 
-This is the Express.js API backend for the Vogue Vault digital twin and smart commerce application.
+This is the **Kitchen** of our application. 
+
+### 🍳 Simple Explanation (What does this do?)
+Imagine a restaurant:
+1.  The **Backend** is the **Kitchen**. It doesn't have a face, but it does all the cooking.
+2.  It takes "Orders" (API requests) from the Frontend.
+3.  It talks to the **AI (Gemini)** to ask: "Hey, what is this piece of clothing?"
+4.  It talks to the **Database (Supabase)** to say: "Save this shirt in the closet!"
+5.  It sends the finished "Meal" (Data) back to the Frontend to show the user.
+
+---
 
 ## Prerequisites
 - Node.js (v18+)

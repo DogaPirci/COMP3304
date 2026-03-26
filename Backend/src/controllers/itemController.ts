@@ -27,9 +27,10 @@ export const uploadClothingItem = async (req: Request, res: Response): Promise<v
         if (clothingItem.get_category() === 'Unknown') {
              res.status(200).json({
                 message: 'Item could not be confidently identified. Please provide a manual category correction.',
-                classification: classificationResult, // Send the original low-confidence prediction
+                classification: classificationResult, 
                 item_data: {
                     category: clothingItem.get_category(),
+                    name: classificationResult.name,
                     info: clothingItem.display_info()
                 },
                 needsManualCorrection: true
@@ -42,6 +43,7 @@ export const uploadClothingItem = async (req: Request, res: Response): Promise<v
             message: 'Clothing item classified and created successfully.',
             item_data: {
                 category: clothingItem.get_category(),
+                name: classificationResult.name,
                 info: clothingItem.display_info(),
                 confidence: classificationResult.confidence
             }

@@ -29,6 +29,14 @@ import type { Session } from '@supabase/supabase-js';
 // Types
 type Category = "Outerwear" | "Tops" | "Bottoms" | "Shoes" | "Accessories";
 
+interface AppNotification {
+  id: string;
+  type: 'error' | 'warning' | 'success' | 'info';
+  message: string;
+  timestamp: Date;
+  read: boolean;
+}
+
 // Configure your base API URL here. 
 // Uses environment variable if available, otherwise defaults to local Express server.
 const API_BASE_URL = ''; // Same-origin relative path for Docker deployment
@@ -246,6 +254,38 @@ function VogueVaultDashboard({ session }: { session: Session }) {
   const [selectedFilter, setSelectedFilter] = useState<Category | "All">("All");
   const [selectedDressCode, setSelectedDressCode] = useState("Avant-Garde");
   const [pendingCorrectionFile, setPendingCorrectionFile] = useState<File | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  // NOTIFICATION SYSTEM
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [requestCount, setRequestCount] = useState(0);
+  const [isRateLimited, setIsRateLimited] = useState(false);
+
+  const addNotification = (type: AppNotification['type'], message: string) => {
+    const newNotif: AppNotification = {
+      id: Math.random().toString(36).substring(2, 9),
+      type,
+      message,
+      timestamp: new Date(),
+      read: false
+    };
+    setNotifications(prev => [newNotif, ...prev]);
+  };
+
+  const incrementRequestCount = () => {
+    setRequestCount(prev => {
+      const newCount = prev + 1;
+      if (newCount === 10) {
+        addNotification('warning', 'Token usage is high. You are approaching the free tier limit.');
+      }
+      return newCount;
+    });
+    // Reset count every minute
+    setTimeout(() => {
+      setRequestCount(prev => Math.max(0, prev - 1));
+    }, 60000);
+  };
 
   const uploadImageToBackend = async (file: File) => {
     try {
@@ -261,12 +301,21 @@ function VogueVaultDashboard({ session }: { session: Session }) {
       });
 
       if (!response.ok) {
+        if (response.status === 429) {
+          setIsRateLimited(true);
+          addNotification('error', 'Tokens exhausted! You have reached the Gemini API free tier limit. Please wait a minute.');
+        }
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
       const data = await response.json();
 
       if (response.status === 201) {
+        if (isRateLimited) {
+          setIsRateLimited(false);
+          addNotification('success', 'Tokens renewed! The AI is back online.');
+        }
+        incrementRequestCount();
         // Successfully classified
         const fileExt = file.name.split('.').pop();
         const fileName = `${Math.random()}.${fileExt}`;
@@ -285,7 +334,7 @@ function VogueVaultDashboard({ session }: { session: Session }) {
         const confidenceValue = data.item_data.confidence ? `${(data.item_data.confidence * 100).toFixed(0)}%` : "100%";
         const dbItem = {
           user_id: session.user.id,
-          name: "Curated Box Item",
+          name: data.item_data.name || "Curated Box Item",
           category: data.item_data.category as Category,
           image_url: publicUrl,
           confidence: confidenceValue
@@ -406,8 +455,21 @@ function VogueVaultDashboard({ session }: { session: Session }) {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ imageBase64: base64, dressCode: selectedDressCode, closet: closetData })
         });
-        if (!response.ok) throw new Error("Failed to analyze inspiration via API");
+        
+        if (!response.ok) {
+          if (response.status === 429) {
+            setIsRateLimited(true);
+            addNotification('error', 'Tokens exhausted! AI Outfit generation reached the limit. Please wait.');
+          }
+          throw new Error("Failed to analyze inspiration via API");
+        }
+        
         const result = await response.json();
+        if (isRateLimited) {
+          setIsRateLimited(false);
+          addNotification('success', 'Tokens renewed! Style Matcher is back online.');
+        }
+        incrementRequestCount();
         
         const outfits = result.outfits || [];
         setGeneratedOutfits(outfits.length > 0 ? outfits : null);
@@ -485,7 +547,9 @@ function VogueVaultDashboard({ session }: { session: Session }) {
             <Search size={16} className="text-black/40 dark:text-white/40" />
             <input 
               type="text" 
-              placeholder="Search your digital twin..." 
+              placeholder="Search your digital twin (e.g. 'black', 'denim')..." 
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
               className="bg-transparent border-none outline-none text-sm w-full placeholder:text-black/30 dark:placeholder:text-white/30 text-black dark:text-white"
             />
           </div>
@@ -496,10 +560,58 @@ function VogueVaultDashboard({ session }: { session: Session }) {
             >
               {theme === "dark" ? <Sun size={20} /> : <Moon size={20} />}
             </button>
-            <button className="relative text-black/60 dark:text-white/60 hover:text-red-500 transition-colors">
-              <Bell size={20} />
-              <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-600 rounded-full border-2 border-white dark:border-[#050505]"></span>
-            </button>
+            <div className="relative">
+              <button 
+                onClick={() => {
+                  setShowNotifications(!showNotifications);
+                  setNotifications(prev => prev.map(n => ({...n, read: true})));
+                }}
+                className={`w-10 h-10 rounded-full bg-black/5 dark:bg-white/5 flex items-center justify-center transition-colors ${showNotifications ? 'text-red-500' : 'text-black/60 dark:text-white/60 hover:text-red-500'}`}
+              >
+                <Bell size={20} />
+                {notifications.some(n => !n.read) && (
+                  <span className="absolute top-2 right-2 w-2 h-2 bg-red-600 rounded-full border-2 border-white dark:border-[#050505] animate-pulse"></span>
+                )}
+              </button>
+              
+              <AnimatePresence>
+                {showNotifications && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                    className="absolute top-12 right-0 w-80 bg-white dark:bg-[#111] border border-black/10 dark:border-white/10 rounded-2xl shadow-2xl z-50 overflow-hidden"
+                  >
+                    <div className="p-4 border-b border-black/5 dark:border-white/5 flex items-center justify-between bg-black/5 dark:bg-white/5">
+                      <h4 className="text-xs font-black uppercase tracking-widest italic">Notifications</h4>
+                      <button onClick={() => { setNotifications([]); setShowNotifications(false); }} className="text-[10px] font-bold uppercase text-red-500 hover:underline">Clear All</button>
+                    </div>
+                    <div className="max-h-96 overflow-y-auto custom-scrollbar">
+                      {notifications.length === 0 ? (
+                        <div className="p-10 text-center space-y-2">
+                          <Bell size={24} className="mx-auto text-black/10 dark:text-white/10" />
+                          <p className="text-[10px] font-bold uppercase tracking-widest text-black/20 dark:text-white/20">No new alerts</p>
+                        </div>
+                      ) : (
+                        notifications.map(n => (
+                          <div key={n.id} className="p-4 border-b border-black/5 dark:border-white/5 flex gap-3 hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
+                            <div className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${
+                              n.type === 'error' ? 'bg-red-600' : 
+                              n.type === 'warning' ? 'bg-amber-500' : 
+                              n.type === 'success' ? 'bg-emerald-500' : 'bg-blue-500'
+                            }`} />
+                            <div className="space-y-1">
+                              <p className="text-xs font-bold leading-tight uppercase tracking-tight">{n.message}</p>
+                              <p className="text-[9px] text-black/40 dark:text-white/40 font-medium">{new Date(n.timestamp).toLocaleTimeString()}</p>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
             <input 
               type="file" 
               ref={fileInputRef} 
@@ -538,6 +650,7 @@ function VogueVaultDashboard({ session }: { session: Session }) {
                   setCloset={setCloset}
                   selectedFilter={selectedFilter} 
                   setSelectedFilter={setSelectedFilter} 
+                  searchQuery={searchQuery}
                 />
               )}
               {activeTab === "Concept Stylist" && (
@@ -555,7 +668,16 @@ function VogueVaultDashboard({ session }: { session: Session }) {
                   setActiveTab={setActiveTab}
                 />
               )}
-              {activeTab === "Smart Commerce" && <CommerceView missingQueries={missingQueries} selectedDressCode={selectedDressCode} />}
+              {activeTab === "Smart Commerce" && (
+                <CommerceView 
+                  missingQueries={missingQueries} 
+                  selectedDressCode={selectedDressCode} 
+                  addNotification={addNotification}
+                  isRateLimited={isRateLimited}
+                  setIsRateLimited={setIsRateLimited}
+                  incrementRequestCount={incrementRequestCount}
+                />
+              )}
             </motion.div>
           </AnimatePresence>
         </div>
@@ -631,19 +753,27 @@ function SidebarItem({ icon, label, active, onClick }: { icon: React.ReactNode, 
   );
 }
 
-function ClosetView({ closet, setCloset, selectedFilter, setSelectedFilter }: { 
+function ClosetView({ closet, setCloset, selectedFilter, setSelectedFilter, searchQuery }: { 
   closet: ClothingItem[], 
   setCloset: React.Dispatch<React.SetStateAction<ClothingItem[]>>,
   selectedFilter: Category | "All", 
-  setSelectedFilter: (v: Category | "All") => void 
+  setSelectedFilter: (v: Category | "All") => void,
+  searchQuery: string
 }) {
+  const filteredCloset = closet.filter(item => {
+    const matchesCategory = selectedFilter === "All" || item.category === selectedFilter;
+    const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                         item.category.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesCategory && matchesSearch;
+  });
+
   return (
     <div className="space-y-16">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-8">
         <div>
           <h2 className="text-6xl font-black tracking-tighter uppercase italic">Digital Twin</h2>
           <p className="text-black/40 dark:text-white/40 mt-2 font-medium uppercase tracking-widest text-xs">
-            Synchronized Wardrobe: <span className="text-red-500">{closet.length}</span> Items Categorized
+            Synchronized Wardrobe: <span className="text-red-500">{filteredCloset.length}</span> Items Categorized
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -694,8 +824,15 @@ function ClosetView({ closet, setCloset, selectedFilter, setSelectedFilter }: {
         </div>
       </div>
 
+      {filteredCloset.length === 0 && (
+        <div className="p-20 text-center space-y-4 bg-black/5 dark:bg-white/5 rounded-3xl border border-dashed border-black/10 dark:border-white/10">
+          <Search size={48} className="mx-auto text-black/10 dark:text-white/10" />
+          <p className="font-bold uppercase tracking-widest text-xs text-black/40 dark:text-white/40">No items match your search "{searchQuery}"</p>
+        </div>
+      )}
+
       {categories.filter(cat => selectedFilter === "All" || selectedFilter === cat).map((cat) => {
-        const items = closet.filter(i => i.category === cat);
+        const items = filteredCloset.filter(i => i.category === cat);
         if (items.length === 0) return null;
 
         return (
@@ -1004,7 +1141,21 @@ export interface ProductRecommendation {
     source: string;
 }
 
-function CommerceView({ missingQueries, selectedDressCode }: { missingQueries: string[]; selectedDressCode: string }) {
+function CommerceView({ 
+  missingQueries, 
+  selectedDressCode, 
+  addNotification, 
+  isRateLimited, 
+  setIsRateLimited, 
+  incrementRequestCount 
+}: { 
+  missingQueries: string[]; 
+  selectedDressCode: string;
+  addNotification: (type: AppNotification['type'], message: string) => void;
+  isRateLimited: boolean;
+  setIsRateLimited: (v: boolean) => void;
+  incrementRequestCount: () => void;
+}) {
   const [recommendations, setRecommendations] = useState<(ProductRecommendation & { originalQuery?: string })[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -1024,9 +1175,24 @@ function CommerceView({ missingQueries, selectedDressCode }: { missingQueries: s
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ searchQuery: query })
         });
-        if (response.status === 503) throw new Error('Service Unavailable: API offline.');
-        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        
+        if (!response.ok) {
+          if (response.status === 429) {
+            setIsRateLimited(true);
+            addNotification('error', 'Tokens exhausted! Smart Commerce search limit reached.');
+          }
+          if (response.status === 503) throw new Error('Service Unavailable: API offline.');
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
         const data = await response.json();
+        
+        if (isRateLimited) {
+          setIsRateLimited(false);
+          addNotification('success', 'Tokens renewed! Smart Commerce is back.');
+        }
+        incrementRequestCount();
+
         if (data.recommendations) {
            const tagged = data.recommendations.map((r: any) => ({...r, originalQuery: query}));
            combinedRecs = [...combinedRecs, ...tagged];
