@@ -1,16 +1,6 @@
 # Vogue Vault - Backend
 
-This is the **Kitchen** of our application. 
-
-### 🍳 Simple Explanation (What does this do?)
-Imagine a restaurant:
-1.  The **Backend** is the **Kitchen**. It doesn't have a face, but it does all the cooking.
-2.  It takes "Orders" (API requests) from the Frontend.
-3.  It talks to the **AI (Gemini)** to ask: "Hey, what is this piece of clothing?"
-4.  It talks to the **Database (Supabase)** to say: "Save this shirt in the closet!"
-5.  It sends the finished "Meal" (Data) back to the Frontend to show the user.
-
----
+This is the Express.js API backend for the Vogue Vault digital twin and smart commerce application.
 
 ## Prerequisites
 - Node.js (v18+)
@@ -30,7 +20,7 @@ Imagine a restaurant:
    ```env
    PORT=5000
    GEMINI_API_KEY="your_gemini_key_here"
-   GOOGLE_SEARCH_API_KEY="your_google_key_here"
+   SERPAPI_KEY="your_google_key_here"
    GOOGLE_SEARCH_ENGINE_ID="your_search_engine_id_here"
    ```
 4. Start the server (usually on http://localhost:5000):
@@ -53,7 +43,7 @@ If you want to test the full production build locally on your machine, you must 
    ```bash
    docker run -p 5000:5000 \
      -e GEMINI_API_KEY="your_gemini_key" \
-     -e GOOGLE_SEARCH_API_KEY="your_google_key" \
+     -e SERPAPI_KEY="your_google_key" \
      -e GOOGLE_SEARCH_ENGINE_ID="your_engine_id" \
      vogue-vault-app
    ```

@@ -15,13 +15,16 @@ export const uploadClothingItem = async (req: Request, res: Response): Promise<v
         }
 
         // 1. Call GeminiService to classify the base64 image
+        console.log(`[Classification] Requesting AI classification for new item...`);
         const classificationResult = await geminiService.classifyImage(imageBase64);
+        console.log(`[Classification] AI Result: Category=${classificationResult.category}, Name=${classificationResult.name}, Confidence=${classificationResult.confidence}`);
         
         // 2. Pass the classification data to the Factory
         const clothingItem = digitalClosetFactory.createClothing(
             classificationResult.category,
             classificationResult.confidence
         );
+        console.log(`[Factory] Created internal object: ${clothingItem.get_category()} (${clothingItem.constructor.name})`);
 
         // 3. If Factory returned Unknown (due to confidence < 0.60 or unknown category string)
         if (clothingItem.get_category() === 'Unknown') {
@@ -50,9 +53,13 @@ export const uploadClothingItem = async (req: Request, res: Response): Promise<v
         });
         return;
 
-    } catch (error) {
-        console.error('Error in uploadClothingItem:', error);
-         res.status(500).json({ error: 'An internal server error occurred while processing the clothing item.' });
-         return;
+    } catch (error: any) {
+        console.error('Error in uploadClothingItem:', error.message || error);
+        if (error.message.includes('429')) {
+             res.status(429).json({ error: error.message });
+             return;
+        }
+        res.status(500).json({ error: 'An internal server error occurred while processing the clothing item.' });
+        return;
     }
 };

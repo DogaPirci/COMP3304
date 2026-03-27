@@ -17,9 +17,13 @@ export const analyzeInspiration = async (req: Request, res: Response): Promise<v
         
          res.status(200).json(result);
          return;
-    } catch (error) {
-        console.error('Error in analyzeInspiration:', error);
-         res.status(500).json({ error: 'An error occurred while analyzing the inspiration image.' });
-         return;
+    } catch (error: any) {
+        console.error('Error in analyzeInspiration:', error.message || error);
+        if (error.message.includes('429')) {
+             res.status(429).json({ error: error.message });
+             return;
+        }
+        res.status(500).json({ error: 'An error occurred while analyzing the inspiration image.' });
+        return;
     }
 };

@@ -1,7 +1,9 @@
 import { Request, Response } from 'express';
-import { CommerceService, ProductRecommendation } from '../services/CommerceService';
+import { ProductRecommendation } from '../factories/CommerceFactory';
+import { GoogleCommerceFactory } from '../services/CommerceService';
 
-const commerceService = new CommerceService();
+const commerceFactory = new GoogleCommerceFactory();
+const commerceProvider = commerceFactory.createProvider();
 
 // Structure for our in-memory cache
 interface CacheEntry {
@@ -45,7 +47,7 @@ export const getRecommendations = async (req: Request, res: Response): Promise<v
         }
 
         // 2. Cache miss (or expired) -> call CommerceService
-        const recommendations = await commerceService.findProducts(searchQuery);
+        const recommendations = await commerceProvider.findProducts(searchQuery);
 
         // 3. Save fresh result to cache
         product_cache.set(cacheKey, {
@@ -60,8 +62,15 @@ export const getRecommendations = async (req: Request, res: Response): Promise<v
         });
         return;
 
-    } catch (error) {
-        console.error('Error in getRecommendations:', error);
+    } catch (error: any) {
+        console.error('[Controller] Error in getRecommendations:', error.message || error);
+        
+        if (error.message.includes('429')) {
+             console.warn('[Controller] Quota hit (429). Informing frontend.');
+             res.status(429).json({ error: 'Google Search API quota exceeded.' });
+             return;
+        }
+
          res.status(500).json({ error: 'An error occurred while fetching product recommendations.' });
          return;
     }

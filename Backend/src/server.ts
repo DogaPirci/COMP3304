@@ -10,13 +10,14 @@ import { analyzeInspiration } from './controllers/stylistController';
 const app = express();
 const port = process.env.PORT || 5000;
 
-// Frontend'den gelen istekleri ve büyük base64 resim dosyalarını kabul etmek için
+// Middlewares
 app.use(cors());
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ limit: '50mb' }));
 
-// Request Logging Middleware
+// REQUEST LOGGER
 app.use((req, res, next) => {
-    console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
+    const timestamp = new Date().toISOString();
+    console.log(`[${timestamp}] ${req.method} ${req.path}`);
     next();
 });
 

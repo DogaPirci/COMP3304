@@ -1,77 +1,100 @@
-export interface ProductRecommendation {
-    title: string;
-    image_url: string;
-    purchase_url: string;
-    price: string;
-    source: string;
-}
+import { CommerceProvider, ProductRecommendation, CommerceFactory } from '../factories/CommerceFactory';
 
-export class CommerceService {
+const fetch = require('node-fetch');
+
+export class CommerceService implements CommerceProvider {
     private apiKey: string;
-    private searchEngineId: string;
 
     constructor() {
-        this.apiKey = process.env.GOOGLE_SEARCH_API_KEY || '';
-        this.searchEngineId = process.env.GOOGLE_SEARCH_ENGINE_ID || '';
+        this.apiKey = process.env.SERPAPI_KEY || '';
 
-        if (!this.apiKey || !this.searchEngineId) {
-            console.warn('Google Search API Key (GOOGLE_SEARCH_API_KEY) or Engine ID (GOOGLE_SEARCH_ENGINE_ID) is missing in environment variables.');
+        if (!this.apiKey) {
+            console.warn('[CommerceService] SERPAPI_KEY is missing.');
         }
     }
 
     public async findProducts(searchQuery: string): Promise<ProductRecommendation[]> {
-        const query = encodeURIComponent(`${searchQuery} buy clothing`);
-        // Using standard native fetch (available in Node 18+)
-        const url = `https://www.googleapis.com/customsearch/v1?key=${this.apiKey}&cx=${this.searchEngineId}&q=${query}&searchType=image`;
+        console.log(`[CommerceService] Searching for matching retail items: "${searchQuery}"`);
+        console.log('🔑 SerpApi Key:', this.apiKey ? this.apiKey.substring(0, 15) + '...' : 'MISSING!!!');
+
+        const brands = [
+            'bershka.com', 'zara.com', 'hm.com', 'mango.com',
+            'pullandbear.com', 'stradivarius.com', 'asos.com',
+            'farfetch.com', 'net-a-porter.com', 'mytheresa.com'
+        ];
+        const siteFilter = brands.map(site => `site:${site}`).join(' OR ');
+        const fullQuery = `${searchQuery} (${siteFilter})`;
+
+        const url = `https://serpapi.com/search.json?engine=google_images&q=${encodeURIComponent(fullQuery)}&api_key=${this.apiKey}&num=10`;
 
         try {
-            const response = await fetch(url);
-            if (!response.ok) {
-                const errorBody = await response.text();
-                throw new Error(`Google Custom Search API error: ${response.status} - ${errorBody}`);
+            console.log(`[CommerceService] Requesting SerpApi for: ${searchQuery}`);
+            let response = await fetch(url);
+            let data: any = await response.json();
+
+            if (data.error) {
+                console.error('🚨 SERPAPI ERROR:', data.error);
+                throw new Error(`SerpApi error: ${data.error}`);
             }
 
-            const data = await response.json();
-            if (!data.items || data.items.length === 0) {
-                console.log('No products found for query:', searchQuery);
+            // Fallback: broader search if no results
+            if (!data.images_results || data.images_results.length === 0) {
+                console.log('[CommerceService] No results with brand filters. Trying broader search...');
+                const broadUrl = `https://serpapi.com/search.json?engine=google_images&q=${encodeURIComponent(searchQuery + ' fashion buy online')}&api_key=${this.apiKey}&num=10`;
+                response = await fetch(broadUrl);
+                data = await response.json();
+            }
+
+            if (!data.images_results || !Array.isArray(data.images_results)) {
+                console.log('[CommerceService] No items found in SerpApi response.');
                 return [];
             }
 
-            const processedItems = data.items.map((item: any): ProductRecommendation | null => {
+            return data.images_results.map((item: any): ProductRecommendation | null => {
                 try {
-                    const pagemap = item.pagemap || {};
-                    const offer = pagemap.offer && pagemap.offer.length > 0 ? pagemap.offer[0] : null;
-                    let priceValue = offer && offer.price ? `${offer.priceCurrency || '$'}${offer.price}` : 'Check Website';
+                    if (!item.original) return null;
 
-                    if (priceValue.includes('%') || priceValue.toLowerCase().includes('off')) {
-                        priceValue = 'Check Website';
+                    const sourceUrl = item.link || item.source || '';
+                    let source = '';
+                    try {
+                        source = new URL(sourceUrl).hostname.replace('www.', '');
+                    } catch {
+                        source = 'Retailer';
                     }
 
-                    const purchaseUrl = item.image?.contextLink || item.link || '';
-                    let source = item.displayLink;
-                    if (!source && purchaseUrl) {
-                        try { source = new URL(purchaseUrl).hostname; } catch(e) { source = 'External Store'; }
-                    }
+                    const lowerSource = source.toLowerCase();
+                    if (lowerSource.includes('bershka')) source = 'Bershka';
+                    else if (lowerSource.includes('pullandbear')) source = 'Pull & Bear';
+                    else if (lowerSource.includes('zara')) source = 'Zara';
+                    else if (lowerSource.includes('hm.com') || lowerSource.includes('h&m')) source = 'H&M';
+                    else if (lowerSource.includes('mango')) source = 'Mango';
+                    else if (lowerSource.includes('asos')) source = 'ASOS';
+                    else if (lowerSource.includes('farfetch')) source = 'Farfetch';
 
                     return {
-                        title: item.title || 'Unknown Product',
-                        image_url: item.link || '', 
-                        purchase_url: purchaseUrl, 
-                        price: priceValue,
-                        source: source || 'External'
+                        title: item.title || 'Fashion Item',
+                        image_url: item.original || item.thumbnail || '',
+                        purchase_url: sourceUrl,
+                        price: 'Check Store',
+                        source: source || 'Retailer'
                     };
-                } catch (mapError) {
-                    console.error('Error processing individual product item:', mapError);
+                } catch (err) {
                     return null;
                 }
-            }).filter((item: any) => item !== null) as ProductRecommendation[];
+            }).filter((item: any) => item !== null && item.image_url) as ProductRecommendation[];
 
-            return processedItems;
-
-        } catch (error) {
-            console.error('API Error in CommerceService:', error instanceof Error ? error.message : error);
-            // Don't throw a generic error that obscures the real issue
-            throw error;
+        } catch (error: any) {
+            console.error('[CommerceService] Unexpected error:', error.message);
+            return [];
         }
+    }
+}
+
+/**
+ * Concrete Creator for Google Commerce.
+ */
+export class GoogleCommerceFactory extends CommerceFactory {
+    public createProvider(): CommerceProvider {
+        return new CommerceService();
     }
 }

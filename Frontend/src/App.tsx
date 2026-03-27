@@ -255,6 +255,7 @@ function VogueVaultDashboard({ session }: { session: Session }) {
   const [selectedDressCode, setSelectedDressCode] = useState("Avant-Garde");
   const [pendingCorrectionFile, setPendingCorrectionFile] = useState<File | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [uploadProgress, setUploadProgress] = useState(0);
 
   // NOTIFICATION SYSTEM
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
@@ -262,7 +263,12 @@ function VogueVaultDashboard({ session }: { session: Session }) {
   const [requestCount, setRequestCount] = useState(0);
   const [isRateLimited, setIsRateLimited] = useState(false);
 
+  useEffect(() => {
+    console.log(`[Dashboard] Tab switched to: ${activeTab}`);
+  }, [activeTab]);
+
   const addNotification = (type: AppNotification['type'], message: string) => {
+    console.log(`[Notification] ${type.toUpperCase()}: ${message}`);
     const newNotif: AppNotification = {
       id: Math.random().toString(36).substring(2, 9),
       type,
@@ -288,10 +294,13 @@ function VogueVaultDashboard({ session }: { session: Session }) {
   };
 
   const uploadImageToBackend = async (file: File) => {
+    console.log(`[Upload] Starting upload process for: ${file.name}`);
+    setIsUploading(true);
+    setUploadProgress(10);
     try {
-      setIsUploading(true);
       const base64Image = await fileToBase64(file);
       
+      console.log(`[Upload] Image sent to backend. Waiting for classification...`);
       const response = await fetch(`${API_BASE_URL}/api/items`, {
         method: 'POST',
         headers: {
@@ -303,12 +312,19 @@ function VogueVaultDashboard({ session }: { session: Session }) {
       if (!response.ok) {
         if (response.status === 429) {
           setIsRateLimited(true);
-          addNotification('error', 'Tokens exhausted! You have reached the Gemini API free tier limit. Please wait a minute.');
+          const data = await response.json();
+          let retryMsg = 'AI is resting (Quota limit). Please wait a minute.';
+          if (data.error && data.error.includes('retry in')) {
+            const match = data.error.match(/retry in ([\d\.]+s)/);
+            if (match) retryMsg = `Gemini Quota Hit! Please retry in ${match[1]}.`;
+          }
+          addNotification('error', retryMsg);
         }
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
       const data = await response.json();
+      console.log(`[Upload] Backend response received:`, data);
 
       if (response.status === 201) {
         if (isRateLimited) {
@@ -441,6 +457,7 @@ function VogueVaultDashboard({ session }: { session: Session }) {
   const handleInspirationUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      console.log(`[Inspiration] Analyzing new inspiration image: ${file.name}`);
       const imageUrl = URL.createObjectURL(file);
       setInspirationImage(imageUrl);
       setGeneratedOutfits(null);
@@ -459,7 +476,13 @@ function VogueVaultDashboard({ session }: { session: Session }) {
         if (!response.ok) {
           if (response.status === 429) {
             setIsRateLimited(true);
-            addNotification('error', 'Tokens exhausted! AI Outfit generation reached the limit. Please wait.');
+            const data = await response.json();
+            let retryMsg = 'AI is resting (Quota limit). Please wait a minute.';
+            if (data.error && data.error.includes('retry in')) {
+              const match = data.error.match(/retry in ([\d\.]+s)/);
+              if (match) retryMsg = `Gemini Quota Hit! Please retry in ${match[1]}.`;
+            }
+            addNotification('error', retryMsg);
           }
           throw new Error("Failed to analyze inspiration via API");
         }
@@ -475,7 +498,10 @@ function VogueVaultDashboard({ session }: { session: Session }) {
         setGeneratedOutfits(outfits.length > 0 ? outfits : null);
         
         if (outfits.length > 0) {
-          const missing = outfits[0].filter((c: any) => c.missingItemQuery).map((c: any) => c.missingItemQuery as string);
+          const missing = outfits[0]
+            .filter((c: any) => c.missingItemQuery && c.missingItemQuery !== "null")
+            .map((c: any) => c.missingItemQuery as string);
+          console.log(`[Stylist] Identified ${missing.length} valid missing items:`, missing);
           setMissingQueries(missing);
         } else {
           setMissingQueries([]);
@@ -549,7 +575,10 @@ function VogueVaultDashboard({ session }: { session: Session }) {
               type="text" 
               placeholder="Search your digital twin (e.g. 'black', 'denim')..." 
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                if (e.target.value) console.log(`[Search] Query changed: "${e.target.value}"`);
+              }}
               className="bg-transparent border-none outline-none text-sm w-full placeholder:text-black/30 dark:placeholder:text-white/30 text-black dark:text-white"
             />
           </div>
@@ -776,15 +805,18 @@ function ClosetView({ closet, setCloset, selectedFilter, setSelectedFilter, sear
             Synchronized Wardrobe: <span className="text-red-500">{filteredCloset.length}</span> Items Categorized
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex gap-2 p-1 bg-black/5 dark:bg-white/5 rounded-2xl border border-black/5 dark:border-white/5 w-fit">
           {["All", ...categories].map((cat) => (
-            <button 
+            <button
               key={cat}
-              onClick={() => setSelectedFilter(cat as any)}
-              className={`px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest transition-all border ${
+              onClick={() => {
+                 setSelectedFilter(cat as Category | "All");
+                 console.log(`[Closet] Filter changed to: ${cat}`);
+              }}
+              className={`px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all duration-300 ${
                 selectedFilter === cat 
-                  ? 'bg-red-600 border-red-600 text-white shadow-[0_0_15px_rgba(220,38,38,0.3)]' 
-                  : 'bg-black/5 dark:bg-white/5 border-black/5 dark:border-white/5 text-black/40 dark:text-white/40 hover:border-black/20 dark:hover:border-white/20'
+                  ? 'bg-black dark:bg-white text-white dark:text-black shadow-xl shadow-black/10' 
+                  : 'text-black/40 dark:text-white/40 hover:text-red-500'
               }`}
             >
               {cat}
@@ -935,7 +967,9 @@ function StylistView({
   useEffect(() => {
     setActiveOutfitIndex(0);
     if (outfits && outfits.length > 0) {
-      const missing = outfits[0].filter((c: any) => c.missingItemQuery).map((c: any) => c.missingItemQuery as string);
+      const missing = outfits[0]
+        .filter((c: any) => c.missingItemQuery && c.missingItemQuery !== "null")
+        .map((c: any) => c.missingItemQuery as string);
       setMissingQueries(missing);
     }
   }, [outfits, setMissingQueries]);
@@ -1179,7 +1213,13 @@ function CommerceView({
         if (!response.ok) {
           if (response.status === 429) {
             setIsRateLimited(true);
-            addNotification('error', 'Tokens exhausted! Smart Commerce search limit reached.');
+            const data = await response.json();
+            let retryMsg = 'Tokens exhausted! Smart Commerce search limit reached.';
+            if (data.error && data.error.includes('retry in')) {
+              const match = data.error.match(/retry in ([\d\.]+s)/);
+              if (match) retryMsg = `Quota Hit! Please retry in ${match[1]}.`;
+            }
+            addNotification('error', retryMsg);
           }
           if (response.status === 503) throw new Error('Service Unavailable: API offline.');
           throw new Error(`HTTP error! status: ${response.status}`);
@@ -1194,13 +1234,14 @@ function CommerceView({
         incrementRequestCount();
 
         if (data.recommendations) {
+           console.log(`[Commerce] Received ${data.recommendations.length} recommendations for query: ${query}`);
            const tagged = data.recommendations.map((r: any) => ({...r, originalQuery: query}));
            combinedRecs = [...combinedRecs, ...tagged];
         }
       }
       setRecommendations(combinedRecs);
     } catch (err: any) {
-      console.error(err);
+      console.error("[Commerce] Fetch Error:", err);
       setError(err.message || 'Failed fetching.');
     } finally {
       setIsLoading(false);
@@ -1224,19 +1265,40 @@ function CommerceView({
         <div className="bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/5 p-20 rounded-[2.5rem] flex flex-col items-center justify-center text-center space-y-6">
           <Loader2 size={64} className="mx-auto text-red-600 animate-spin" />
           <h3 className="text-2xl font-black uppercase italic">Curating Selections</h3>
-          <p className="text-black/40 dark:text-white/40 max-w-sm mx-auto font-medium">Please wait while we synthesize {selectedDressCode} matches via Custom Search...</p>
+          <p className="text-black/40 dark:text-white/40 max-w-sm mx-auto font-medium">
+            {missingQueries.length > 0 
+              ? `Searching for your missing ${missingQueries.join(', ')}...` 
+              : `Synthesizing ${selectedDressCode} matches via Custom Search...`}
+          </p>
         </div>
       ) : error ? (
         <div className="bg-red-600/10 border border-red-600/20 p-20 rounded-[2.5rem] flex flex-col items-center justify-center text-center space-y-6">
           <AlertCircle size={64} className="mx-auto text-red-600" />
-          <h3 className="text-2xl font-black uppercase italic text-red-600">Network Error</h3>
-          <p className="text-red-500 max-w-sm mx-auto font-medium">{error}</p>
-          <button 
-             onClick={() => fetchAllRecommendations(missingQueries.length > 0 ? missingQueries : [`${selectedDressCode} trendy outfit pieces`])}
-             className="bg-red-600 text-white px-6 py-3 rounded-xl uppercase font-black tracking-widest text-xs hover:bg-red-700 transition shadow-lg shadow-red-600/20"
-          >
-             Retry Fetch
-          </button>
+          <h3 className="text-2xl font-black uppercase italic text-red-600">
+            {error.includes('403') ? 'Search API Access Denied' : 'Sync Error'}
+          </h3>
+          <p className="text-red-500 max-w-md mx-auto font-medium">
+            {error.includes('403') 
+              ? 'The Custom Search API is not enabled in your Google Cloud Project. Please go to the Google Cloud Console and enable it to see retail matches.' 
+              : error}
+          </p>
+          {error.includes('403') ? (
+            <a 
+              href="https://console.cloud.google.com/apis/library/customsearch.googleapis.com" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="bg-red-600 text-white px-8 py-4 rounded-xl uppercase font-black tracking-widest text-xs hover:bg-red-700 transition shadow-lg shadow-red-600/20 flex items-center gap-2"
+            >
+              Enable API in Console <ArrowUpRight size={16} />
+            </a>
+          ) : (
+            <button 
+               onClick={() => fetchAllRecommendations(missingQueries.length > 0 ? missingQueries : [`${selectedDressCode} trendy outfit pieces`])}
+               className="bg-red-600 text-white px-6 py-3 rounded-xl uppercase font-black tracking-widest text-xs hover:bg-red-700 transition shadow-lg shadow-red-600/20"
+            >
+               Retry Fetch
+            </button>
+          )}
         </div>
       ) : recommendations.length > 0 ? (
         <div className="space-y-8">
@@ -1253,7 +1315,13 @@ function CommerceView({
            )}
            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
              {recommendations.map((rec, idx) => (
-                <div key={idx} className="bg-gray-50 dark:bg-[#0A0A0A] p-6 rounded-3xl border border-black/5 dark:border-white/5 flex flex-col justify-between group h-full hover:-translate-y-2 transition-transform duration-300">
+                <a 
+                  key={idx} 
+                  href={rec.purchase_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="bg-gray-50 dark:bg-[#0A0A0A] p-6 rounded-3xl border border-black/5 dark:border-white/5 flex flex-col justify-between group h-full hover:-translate-y-2 hover:border-red-600/50 transition-all duration-300 shadow-xl shadow-transparent hover:shadow-red-600/5"
+                >
                    <div>
                      <div className="aspect-[3/4] rounded-2xl overflow-hidden bg-gray-200 dark:bg-[#111] relative mb-4">
                        <img 
@@ -1262,7 +1330,6 @@ function CommerceView({
                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" 
                          referrerPolicy="no-referrer"
                          onError={(e) => {
-                            // Fallback to placeholder if external image fails
                             (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1591047139829-d91aecb6caea?w=500';
                          }}
                        />
@@ -1270,26 +1337,29 @@ function CommerceView({
                          {rec.price}
                        </div>
                      </div>
-                     <h4 className="font-bold text-sm uppercase leading-snug line-clamp-2 mb-2" title={rec.title}>{rec.title}</h4>
+                     <h4 className="font-bold text-sm uppercase leading-snug line-clamp-2 mb-2 group-hover:text-red-600 transition-colors" title={rec.title}>{rec.title}</h4>
                      <p className="text-[10px] font-black uppercase tracking-widest text-red-500 truncate mb-1">Via {rec.source}</p>
                    </div>
-                   <a 
-                     href={rec.purchase_url}
-                     target="_blank"
-                     rel="noopener noreferrer"
-                     className="mt-6 w-full bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 text-black dark:text-white py-3 rounded-xl font-black uppercase tracking-[0.1em] text-xs flex items-center justify-center gap-2 hover:bg-red-600 hover:text-white hover:border-red-600 transition-colors shadow-lg shadow-black/5 dark:shadow-white/5"
+                   <div 
+                     className="mt-6 w-full bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 text-black dark:text-white py-3 rounded-xl font-black uppercase tracking-[0.1em] text-xs flex items-center justify-center gap-2 group-hover:bg-red-600 group-hover:text-white group-hover:border-red-600 transition-colors shadow-lg shadow-black/5 dark:shadow-white/5"
                    >
-                     Buy Item <ArrowUpRight size={14} />
-                   </a>
-                </div>
+                     View Site <ArrowUpRight size={14} />
+                   </div>
+                </a>
              ))}
            </div>
         </div>
       ) : (
         <div className="bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/5 p-20 rounded-[2.5rem] text-center space-y-6">
-          <CheckCircle2 size={64} className="mx-auto text-black/10 dark:text-white/10" />
-          <h3 className="text-2xl font-black uppercase italic">Wardrobe Complete</h3>
-          <p className="text-black/40 dark:text-white/40 max-w-sm mx-auto font-medium">Your digital twin currently satisfies all generated style compositions. No external recommendations found.</p>
+          <AlertCircle size={64} className="mx-auto text-black/10 dark:text-white/10" />
+          <h3 className="text-2xl font-black uppercase italic">
+            {missingQueries.length > 0 ? "No Direct Matches Found" : "Wardrobe Complete"}
+          </h3>
+          <p className="text-black/40 dark:text-white/40 max-w-sm mx-auto font-medium">
+            {missingQueries.length > 0 
+              ? `We couldn't find exact retail matches for ${missingQueries.join(' or ')} at our primary partners right now. Try a different dress code or check back later.`
+              : "Your digital twin currently satisfies all generated style compositions. No external recommendations found."}
+          </p>
         </div>
       )}
     </div>
