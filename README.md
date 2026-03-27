@@ -45,10 +45,49 @@ To ensure the application is robust and maintainable, VogueVault strictly adhere
 ##  4. Technologies Used
 | Category | Technology |
 | :--- | :--- |
-| **Frontend & API** | Next.js (React) and Tailwind CSS |
+| **Frontend & API** | Vite + React (TypeScript) and Tailwind CSS |
 | **Database & Auth** | Supabase (PostgreSQL, Auth, and Storage) |
-| **AI & Search** | Google Gemini Vision API & Google Custom Search API |
+| **AI & Search** | Google Gemini Vision API & SerpApi (Google Images) |
 | **Deployment** | Docker and Railway.app |
+
+---
+
+##  5. 🐳 Running with Docker (Recommended for Team)
+
+> All team members should use Docker to ensure identical environments.
+
+### First-time setup
+
+1. Clone the repository
+2. Copy the environment template and fill in your API keys:
+   ```bash
+   cp Backend/.env.example Backend/.env
+   ```
+   Edit `Backend/.env` with your actual keys:
+   ```env
+   GEMINI_API_KEY="your_gemini_key_here"
+   SERPAPI_KEY="your_serpapi_key_here"
+   GOOGLE_SEARCH_ENGINE_ID="your_search_engine_id"
+   GOOGLE_PROJECT_ID="your_project_id"
+   PORT=5000
+   ```
+3. Start everything with one command from the project root:
+   ```bash
+   docker compose up --build
+   ```
+4. Access the app:
+   - **Frontend:** http://localhost:3000
+   - **Backend API:** http://localhost:5000
+
+### Subsequent runs (no rebuild needed)
+```bash
+docker compose up
+```
+
+### Stop
+```bash
+docker compose down
+```
 
 ---
 

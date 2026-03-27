@@ -20,9 +20,11 @@ export default defineConfig(({mode}) => {
       // Do not modifyâfile watching is disabled to prevent flickering during agent edits.
       hmr: process.env.DISABLE_HMR !== 'true',
       port: 3000,
+      host: '0.0.0.0',
       proxy: {
         '/api': {
-          target: 'http://localhost:5000',
+          // Docker: VITE_API_URL=http://backend:5000 | Local: http://localhost:5000
+          target: process.env.VITE_API_URL || 'http://localhost:5000',
           changeOrigin: true,
           secure: false,
         },
