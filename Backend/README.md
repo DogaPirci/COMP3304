@@ -30,8 +30,9 @@ Eğer bilgisayarınızda Docker kuruluysa, hiçbir şey yüklemeden (npm install
 *   Docker'ın çalıştığını kontrol etmek için terminale `docker --version` yazın.
 
 ### 2. Çalıştırma Adımları:
-1.  Ana dizine (root) dönün: `cd ..`
-2.  Konteynerları başlatın:
+1.  Docker Desktop ı bilgisayarınızda açın 
+2.  Terminal açın ve Ana dizine (root) dönün: `cd ..`
+3.  Konteynerları başlatın:
     ```bash
     docker compose up --build
     ```
