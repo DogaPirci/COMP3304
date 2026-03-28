@@ -1,46 +1,43 @@
-# Vogue Vault - Frontend
+# 🎨 Frontend Başlatma Rehberi
 
-This is the **Waiter** of our application. 
+Uygulamanın görsel yüzünü (frontend) açmak için şu adımları izleyin:
 
-### 🤵 Simple Explanation (What does this do?)
-Imagine a restaurant:
-1.  The **Frontend** is the **Waiter**. It's the face of the restaurant.
-2.  It shows the menu (UI) and takes the user's order (Button clicks).
-3.  It doesn't "cook" anything itself. It just sends the order to the **Backend (Kitchen)**.
-4.  Once the Kitchen is done, the Waiter brings the "Meal" (Data) back to the table and displays it beautifully for the user.
+> **Önemli:** Başlamadan önce Backend'in (Siyah terminal) çalıştığından emin olun!
 
----
- digital twin and smart commerce application.
-
-## Prerequisites
-- Node.js (v18+)
-- Backend API Running (default: `http://localhost:5000`)
-
-## Local Development
-1. Navigate to the Frontend folder:
+1. **Yeni bir terminal açın** ve `Frontend` klasörünün içinde olduğunuzdan emin olun.
    ```bash
    cd Frontend
    ```
-2. Install dependencies:
+2. **Paketleri yükleyin**: Aşağıdaki komutu yazarak gerekli dosyaları indirin:
    ```bash
    npm install
    ```
-3. Environment Setup (Optional):
-   The frontend automatically defaults to `http://localhost:5000`. If your backend is hosted elsewhere, set:
-   ```env
-   VITE_API_URL="your_backend_url" 
-   # OR NEXT_PUBLIC_API_URL="your_backend_url"
-   ```
-4. Start the development server (depending on your setup):
+3. **Uygulamayı başlatın**: Aşağıdaki komutu yazarak uygulamayı çalıştırın:
    ```bash
    npm run dev
    ```
 
-## Production & Docker Architecture
-You do **not** need to map a volume or run a separate Docker container for the Frontend in production! 
+Her şey hazır! Tarayıcınızda otomatik açılmazsa `http://localhost:3000` adresine gidebilirsiniz.
 
-The `Dockerfile` located in the **root** of the project automatically:
-1. Installs your Frontend dependencies.
-2. Runs `npm run build` to create highly optimized static files.
-3. Moves these static files into the Backend's server automatically where they are served efficiently on a single unified port.
-4. **Never** include your `.env` or `node_modules` inside the Docker image; the `.dockerignore` file prevents this.
+*(Eğer 'Network Error' hatası alıyorsanız, Backend terminalinin açık ve çalışıyor olduğundan emin olun.)*
+
+---
+
+## 🐳 Docker ile Çalıştırma (Önerilen)
+
+Eğer ayrı terminallerle (Frontend ve Backend) uğraşmak istemiyorsanız Docker en kolay yoldur.
+
+### 1. Docker Kurulu Değilse:
+*   [Docker Desktop](https://www.docker.com/products/docker-desktop/) indirip kurun.
+*   **Önemli (Windows):** Kurulum sırasında "Use WSL 2 instead of Hyper-V" seçeneğinin işaretli olduğundan emin olun.
+*   Kurulumdan sonra bir kez bilgisayarınızı yeniden başlatmanız gerekebilir.
+*   Terminalinize `docker --version` yazarak kontrol edin.
+
+### 2. Çalıştırma Adımları:
+1.  Ana dizine (root) dönün: `cd ..`
+2.  Tüm projeyi tek komutla başlatın:
+    ```bash
+    docker compose up --build
+    ```
+
+Artık Frontend `http://localhost:3000` adresinde her şey hazır bir şekilde çalışıyor olacak.

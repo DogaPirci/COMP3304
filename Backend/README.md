@@ -1,50 +1,39 @@
-# Vogue Vault - Backend
+# 🚀 Backend Başlatma Rehberi
 
-This is the Express.js API backend for the Vogue Vault digital twin and smart commerce application.
+Bu projenin mutfağını (backend) ayağa kaldırmak için şu basit adımları izleyin:
 
-## Prerequisites
-- Node.js (v18+)
-- Gemini API Key
-- Google Custom Search API Key & Engine ID
-
-## Local Development
-1. Navigate to the Backend folder:
+1. **Terminalinizi açın** ve `Backend` klasörünün içinde olduğunuzdan emin olun.
    ```bash
    cd Backend
    ```
-2. Install dependencies:
+2. **Paketleri yükleyin**: Aşağıdaki komutu yazıp Enter'a basın:
    ```bash
    npm install
    ```
-3. Create a `.env` file in the `Backend` directory:
-   ```env
-   PORT=5000
-   GEMINI_API_KEY="your_gemini_key_here"
-   SERPAPI_KEY="your_google_key_here"
-   GOOGLE_SEARCH_ENGINE_ID="your_search_engine_id_here"
-   ```
-4. Start the server (usually on http://localhost:5000):
+3. **Sunucuyu başlatın**: Aşağıdaki komutu yazıp Enter'a basın:
    ```bash
-   npx ts-node src/server.ts
+   npm run dev
    ```
 
-## 🐳 Docker Deployment & Architecture
+Tebrikler! Sunucunuz artık `http://localhost:5000` adresinde çalışıyor.
 
-Because we are deploying both the Frontend and Backend to a single Railway container, the **Backend acts as the master server** that hosts both the API and the static React files.
+---
 
-### How to Run with Docker Locally
-If you want to test the full production build locally on your machine, you must run these commands from the **root project directory** (`../`), not inside this Backend folder:
+## 🐳 Docker ile Çalıştırma (Önerilen)
 
-1. **Build the Docker Image**:
-   ```bash
-   docker build -t vogue-vault-app .
-   ```
-2. **Run the Container**:
-   ```bash
-   docker run -p 5000:5000 \
-     -e GEMINI_API_KEY="your_gemini_key" \
-     -e SERPAPI_KEY="your_google_key" \
-     -e GOOGLE_SEARCH_ENGINE_ID="your_engine_id" \
-     vogue-vault-app
-   ```
-Instead of manually typing the long run command with all the environment variables, it's best to connect your repository to Railway.app—Railway securely detects the root `Dockerfile` and injects your variables from their dashboard automatically!
+Eğer bilgisayarınızda Docker kuruluysa, hiçbir şey yüklemeden (npm install vs. yapmadan) projeyi ayağa kaldırabilirsiniz.
+
+### 1. Docker Kurulu Değilse:
+*   [Docker Desktop](https://www.docker.com/products/docker-desktop/) indirip kurun.
+*   **Windows Kullanıcıları İçin:** Kurulum sırasında "Use WSL 2 instead of Hyper-V" seçeneğinin işaretli olduğundan emin olun.
+*   Kurulum bittikten sonra bilgisayarınızı yeniden başlatmanız gerekebilir.
+*   Docker'ın çalıştığını kontrol etmek için terminale `docker --version` yazın.
+
+### 2. Çalıştırma Adımları:
+1.  Ana dizine (root) dönün: `cd ..`
+2.  Konteynerları başlatın:
+    ```bash
+    docker compose up --build
+    ```
+
+Bu komut hem Backend'i hem de Frontend'i otomatik olarak ayağa kaldırır.

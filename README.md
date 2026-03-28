@@ -52,42 +52,49 @@ To ensure the application is robust and maintainable, VogueVault strictly adhere
 
 ---
 
-##  5. 🐳 Running with Docker (Recommended for Team)
+##  5. 🐳 Running with Docker (Recommended)
 
-> All team members should use Docker to ensure identical environments.
+Docker ensures that everyone on the team has the exact same environment, avoiding "it works on my machine" issues.
 
-### First-time setup
+### 🛠️ If you don't have Docker installed yet:
 
-1. Clone the repository
-2. Copy the environment template and fill in your API keys:
+#### **Windows Users (Required Steps):**
+1.  **Download:** Download [Docker Desktop for Windows](https://www.docker.com/products/docker-desktop/).
+2.  **Install:** During installation, ensure **"Use WSL 2 instead of Hyper-V"** is checked.
+3.  **WSL 2 Update:** If prompted, follow the link to update your Linux Kernel.
+4.  **Restart:** Restart your computer after installation.
+5.  **Verify:** Open a terminal and type `docker --version`.
+
+#### **Mac/Linux Users:**
+*   **Mac:** Download [Docker Desktop for Mac](https://www.docker.com/products/docker-desktop/).
+*   **Linux:** Follow the [official engine installation guide](https://docs.docker.com/engine/install/).
+
+---
+
+### 🚀 Getting Started
+
+1. **Clone the repository** (if you haven't already).
+2. **Environment Setup:**
+   Copy the template and fill in your API keys in `Backend/.env`:
    ```bash
    cp Backend/.env.example Backend/.env
    ```
-   Edit `Backend/.env` with your actual keys:
-   ```env
-   GEMINI_API_KEY="your_gemini_key_here"
-   SERPAPI_KEY="your_serpapi_key_here"
-   GOOGLE_SEARCH_ENGINE_ID="your_search_engine_id"
-   GOOGLE_PROJECT_ID="your_project_id"
-   PORT=5000
-   ```
-3. Start everything with one command from the project root:
+3. **Start the System:**
+   Run this command from the **root directory**:
    ```bash
    docker compose up --build
    ```
-4. Access the app:
-   - **Frontend:** http://localhost:3000
-   - **Backend API:** http://localhost:5000
+4. **Access the Application:**
+   *   **Frontend:** [http://localhost:3000](http://localhost:3000)
+   *   **Backend API:** [http://localhost:5000](http://localhost:5000)
 
-### Subsequent runs (no rebuild needed)
-```bash
-docker compose up
-```
+---
 
-### Stop
-```bash
-docker compose down
-```
+### 💡 Useful Commands
+
+*   **Stop:** `docker compose down`
+*   **Restart after changes:** `docker compose up --build`
+*   **View Logs:** `docker compose logs -f`
 
 ---
 
