@@ -262,6 +262,7 @@ function VogueVaultDashboard({ session }: { session: Session }) {
   const [showNotifications, setShowNotifications] = useState(false);
   const [requestCount, setRequestCount] = useState(0);
   const [isRateLimited, setIsRateLimited] = useState(false);
+  const [toastNotif, setToastNotif] = useState<AppNotification | null>(null);
 
   useEffect(() => {
     console.log(`[Dashboard] Tab switched to: ${activeTab}`);
@@ -277,6 +278,8 @@ function VogueVaultDashboard({ session }: { session: Session }) {
       read: false
     };
     setNotifications(prev => [newNotif, ...prev]);
+    setToastNotif(newNotif);
+    setTimeout(() => setToastNotif(null), 3000);
   };
 
   const incrementRequestCount = () => {
@@ -360,19 +363,19 @@ function VogueVaultDashboard({ session }: { session: Session }) {
         
         if (dbError || !insertedData) {
             console.error("Supabase Insert Error:", dbError);
-            alert("Veritabanına kaydedilemedi! Geçici olarak ekranda görünecektir.");
+            addNotification('warning', 'Could not save to database. Showing temporarily.');
             setCloset(prev => [{...dbItem, id: Math.random().toString(36).substring(2, 9), image: publicUrl} as any, ...prev]);
         } else {
             setCloset(prev => [{...insertedData, id: insertedData.id.toString(), image: insertedData.image_url}, ...prev]);
         }
-        alert(`Success! Classified as ${data.item_data.category}`);
+        addNotification('success', `✓ Classified as ${data.item_data.category}`);
       } else if (response.status === 200 && data.needsManualCorrection) {
         // Needs manual correction due to low confidence/unknown
         setPendingCorrectionFile(file);
       }
     } catch (error) {
       console.error("Network error during upload:", error);
-      alert("Network error: Could not connect to the backend server.");
+      addNotification('error', 'Network error: Could not connect to backend.');
     } finally {
       setIsUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -519,6 +522,23 @@ function VogueVaultDashboard({ session }: { session: Session }) {
       {/* Background Glows */}
       <div className="absolute top-[-10%] right-[-10%] w-[50%] h-[50%] bg-red-900/10 dark:bg-red-900/20 blur-[120px] rounded-full pointer-events-none"></div>
       <div className="absolute bottom-[-10%] left-[-10%] w-[40%] h-[40%] bg-red-900/5 dark:bg-red-900/10 blur-[100px] rounded-full pointer-events-none"></div>
+      {/* Toast Notification */}
+      <AnimatePresence>
+        {toastNotif && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className={`fixed top-24 right-6 z-50 px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-3 text-white text-sm font-bold uppercase tracking-wider ${
+              toastNotif.type === 'success' ? 'bg-emerald-500' :
+              toastNotif.type === 'error' ? 'bg-red-600' :
+              toastNotif.type === 'warning' ? 'bg-amber-500' : 'bg-blue-500'
+            }`}
+          >
+            <span>{toastNotif.message}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Sidebar */}
       <aside className="w-72 bg-gray-50 dark:bg-[#0A0A0A] border-r border-black/5 dark:border-white/5 flex flex-col p-8 z-20 transition-colors duration-500">
