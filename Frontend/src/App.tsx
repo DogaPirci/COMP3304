@@ -825,36 +825,7 @@ function ClosetView({ closet, setCloset, selectedFilter, setSelectedFilter, sear
         </div>
       </div>
 
-      {/* AI Insights Bar */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/5 p-6 rounded-2xl flex items-center gap-4">
-          <div className="w-12 h-12 rounded-full bg-red-600/20 flex items-center justify-center text-red-500">
-            <Sparkles size={24} />
-          </div>
-          <div>
-            <p className="text-[10px] font-black uppercase tracking-widest text-black/40 dark:text-white/40">Style Versatility</p>
-            <p className="text-xl font-black italic">84% High</p>
-          </div>
-        </div>
-        <div className="bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/5 p-6 rounded-2xl flex items-center gap-4">
-          <div className="w-12 h-12 rounded-full bg-red-600/20 flex items-center justify-center text-red-500">
-            <LayoutGrid size={24} />
-          </div>
-          <div>
-            <p className="text-[10px] font-black uppercase tracking-widest text-black/40 dark:text-white/40">Color Palette</p>
-            <p className="text-xl font-black italic">Monochrome</p>
-          </div>
-        </div>
-        <div className="bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/5 p-6 rounded-2xl flex items-center gap-4">
-          <div className="w-12 h-12 rounded-full bg-red-600/20 flex items-center justify-center text-red-500">
-            <CheckCircle2 size={24} />
-          </div>
-          <div>
-            <p className="text-[10px] font-black uppercase tracking-widest text-black/40 dark:text-white/40">Twin Health</p>
-            <p className="text-xl font-black italic">Optimized</p>
-          </div>
-        </div>
-      </div>
+      
 
       {filteredCloset.length === 0 && (
         <div className="p-20 text-center space-y-4 bg-black/5 dark:bg-white/5 rounded-3xl border border-dashed border-black/10 dark:border-white/10">
@@ -1249,8 +1220,12 @@ function CommerceView({
   };
 
   useEffect(() => {
-    fetchAllRecommendations(missingQueries.length > 0 ? missingQueries : [`${selectedDressCode} trendy outfit pieces`]);
-  }, [missingQueries, selectedDressCode]);
+  if (missingQueries.length > 0) {
+    fetchAllRecommendations(missingQueries);
+  } else {
+    setRecommendations([]);
+  }
+}, [missingQueries]);
 
   return (
     <div className="space-y-12">
