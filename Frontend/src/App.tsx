@@ -244,13 +244,13 @@ export default function App() {
 
 function VogueVaultDashboard({ session }: { session: Session }) {
   const [theme, setTheme] = useState<"dark" | "light">("dark");
-  const [activeTab, setActiveTab] = useState<Tab>("My Closet");
+  const [activeTab, setActiveTab] = useState<Tab>("Smart Commerce");
   const [closet, setCloset] = useState<ClothingItem[]>(initialCloset);
   const [isUploading, setIsUploading] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [inspirationImage, setInspirationImage] = useState<string | null>(null);
   const [generatedOutfits, setGeneratedOutfits] = useState<OutfitComponent[][] | null>(null);
-  const [missingQueries, setMissingQueries] = useState<string[]>([]);
+  const [missingItems, setMissingItems] = useState<{query: string, category: Category}[]>([]);
   const [selectedFilter, setSelectedFilter] = useState<Category | "All">("All");
   const [selectedDressCode, setSelectedDressCode] = useState("Avant-Garde");
   const [pendingCorrectionFile, setPendingCorrectionFile] = useState<File | null>(null);
@@ -464,7 +464,7 @@ function VogueVaultDashboard({ session }: { session: Session }) {
       const imageUrl = URL.createObjectURL(file);
       setInspirationImage(imageUrl);
       setGeneratedOutfits(null);
-      setMissingQueries([]);
+      setMissingItems([]);
       setIsGenerating(true);
       
       try {
@@ -503,11 +503,11 @@ function VogueVaultDashboard({ session }: { session: Session }) {
         if (outfits.length > 0) {
           const missing = outfits[0]
             .filter((c: any) => c.missingItemQuery && c.missingItemQuery !== "null")
-            .map((c: any) => c.missingItemQuery as string);
+            .map((c: any) => ({ query: c.missingItemQuery as string, category: c.category as Category }));
           console.log(`[Stylist] Identified ${missing.length} valid missing items:`, missing);
-          setMissingQueries(missing);
+          setMissingItems(missing);
         } else {
-          setMissingQueries([]);
+          setMissingItems([]);
         }
       } catch (error) {
         console.error("AI Outfit Generation failed:", error);
@@ -708,8 +708,8 @@ function VogueVaultDashboard({ session }: { session: Session }) {
                   setInspirationImage={setInspirationImage}
                   handleInspirationUpload={handleInspirationUpload}
                   outfits={generatedOutfits}
-                  missingQueries={missingQueries}
-                  setMissingQueries={setMissingQueries}
+                  missingItems={missingItems}
+                  setMissingItems={setMissingItems}
                   closet={closet}
                   isGenerating={isGenerating}
                   selectedDressCode={selectedDressCode}
@@ -719,7 +719,7 @@ function VogueVaultDashboard({ session }: { session: Session }) {
               )}
               {activeTab === "Smart Commerce" && (
                 <CommerceView 
-                  missingQueries={missingQueries} 
+                  missingItems={missingItems} 
                   selectedDressCode={selectedDressCode} 
                   addNotification={addNotification}
                   isRateLimited={isRateLimited}
@@ -931,8 +931,8 @@ function StylistView({
   setInspirationImage, 
   handleInspirationUpload, 
   outfits, 
-  missingQueries,
-  setMissingQueries,
+  missingItems,
+  setMissingItems,
   closet,
   isGenerating,
   selectedDressCode,
@@ -943,8 +943,8 @@ function StylistView({
   setInspirationImage: (v: string | null) => void;
   handleInspirationUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
   outfits: OutfitComponent[][] | null;
-  missingQueries: string[];
-  setMissingQueries: React.Dispatch<React.SetStateAction<string[]>>;
+  missingItems: {query: string, category: Category}[];
+  setMissingItems: React.Dispatch<React.SetStateAction<{query: string, category: Category}[]>>;
   closet: ClothingItem[];
   isGenerating: boolean;
   selectedDressCode: string;
@@ -960,10 +960,10 @@ function StylistView({
     if (outfits && outfits.length > 0) {
       const missing = outfits[0]
         .filter((c: any) => c.missingItemQuery && c.missingItemQuery !== "null")
-        .map((c: any) => c.missingItemQuery as string);
-      setMissingQueries(missing);
+        .map((c: any) => ({ query: c.missingItemQuery as string, category: c.category as Category }));
+      setMissingItems(missing);
     }
-  }, [outfits, setMissingQueries]);
+  }, [outfits, setMissingItems]);
 
   return (
     <div className="max-w-5xl mx-auto space-y-16">
@@ -1113,12 +1113,12 @@ function StylistView({
                   })}
                 </div>
 
-                {missingQueries.length > 0 && (
+                {missingItems.length > 0 && (
                   <div className="bg-red-600/10 border border-red-600/20 p-6 rounded-2xl flex items-center gap-4">
                     <AlertCircle className="text-red-500 shrink-0" />
                     <div className="flex-1">
                       <p className="text-[10px] uppercase font-black text-red-500 tracking-widest mb-1">Gap Analysis</p>
-                      <p className="text-sm font-bold">Missing <span className="italic">{missingQueries.length}</span> items to complete this look.</p>
+                      <p className="text-sm font-bold">Missing <span className="italic">{missingItems.length}</span> items to complete this look.</p>
                       <p className="text-[10px] text-black/40 dark:text-white/40 mt-1 uppercase tracking-widest">We found exact visual matches in Smart Commerce</p>
                     </div>
                     <button 
@@ -1167,26 +1167,27 @@ export interface ProductRecommendation {
 }
 
 function CommerceView({ 
-  missingQueries, 
+  missingItems, 
   selectedDressCode, 
   addNotification, 
   isRateLimited, 
   setIsRateLimited, 
   incrementRequestCount 
 }: { 
-  missingQueries: string[]; 
+  missingItems: {query: string, category: Category}[]; 
   selectedDressCode: string;
   addNotification: (type: AppNotification['type'], message: string) => void;
   isRateLimited: boolean;
   setIsRateLimited: (v: boolean) => void;
   incrementRequestCount: () => void;
 }) {
-  const [recommendations, setRecommendations] = useState<(ProductRecommendation & { originalQuery?: string })[]>([]);
+  const [recommendations, setRecommendations] = useState<(ProductRecommendation & { originalQuery?: string, category?: Category })[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedFilter, setSelectedFilter] = useState<Category | "All">("All");
 
-  const fetchAllRecommendations = async (queries: string[]) => {
-    if (!queries || queries.length === 0) {
+  const fetchAllRecommendations = async (items: {query: string, category?: Category}[]) => {
+    if (!items || items.length === 0) {
       setRecommendations([]);
       return;
     }
@@ -1194,11 +1195,11 @@ function CommerceView({
     setError(null);
     try {
       let combinedRecs: any[] = [];
-      for (const query of queries) {
+      for (const item of items) {
         const response = await fetch(`${API_BASE_URL}/api/products`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ searchQuery: query })
+          body: JSON.stringify({ searchQuery: item.query })
         });
         
         if (!response.ok) {
@@ -1225,8 +1226,8 @@ function CommerceView({
         incrementRequestCount();
 
         if (data.recommendations) {
-           console.log(`[Commerce] Received ${data.recommendations.length} recommendations for query: ${query}`);
-           const tagged = data.recommendations.map((r: any) => ({...r, originalQuery: query}));
+           console.log(`[Commerce] Received ${data.recommendations.length} recommendations for query: ${item.query}`);
+           const tagged = data.recommendations.map((r: any) => ({...r, originalQuery: item.query, category: item.category}));
            combinedRecs = [...combinedRecs, ...tagged];
         }
       }
@@ -1240,19 +1241,35 @@ function CommerceView({
   };
 
   useEffect(() => {
-  if (missingQueries.length > 0) {
-    fetchAllRecommendations(missingQueries);
+  if (missingItems.length > 0) {
+    setSelectedFilter("All");
+    fetchAllRecommendations(missingItems);
   } else {
     setRecommendations([]);
   }
-}, [missingQueries]);
+}, [missingItems]);
 
   return (
     <div className="space-y-12">
-      <div className="flex justify-between items-end">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-8">
         <div>
           <h2 className="text-5xl font-black tracking-tighter uppercase italic">Smart Commerce</h2>
           <p className="text-black/40 dark:text-white/40 mt-2 font-medium uppercase tracking-widest text-xs">Bridging the gap between your twin and your goals.</p>
+        </div>
+        <div className="flex gap-2 p-1 bg-black/5 dark:bg-white/5 rounded-2xl border border-black/5 dark:border-white/5 w-fit flex-wrap">
+          {["All", ...categories].map((cat) => (
+            <button
+              key={cat}
+              onClick={() => setSelectedFilter(cat as Category | "All")}
+              className={`px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all duration-300 ${
+                selectedFilter === cat 
+                  ? 'bg-black dark:bg-white text-white dark:text-black shadow-xl shadow-black/10' 
+                  : 'text-black/40 dark:text-white/40 hover:text-red-500'
+              }`}
+            >
+              {cat}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -1261,8 +1278,8 @@ function CommerceView({
           <Loader2 size={64} className="mx-auto text-red-600 animate-spin" />
           <h3 className="text-2xl font-black uppercase italic">Curating Selections</h3>
           <p className="text-black/40 dark:text-white/40 max-w-sm mx-auto font-medium">
-            {missingQueries.length > 0 
-              ? `Searching for your missing ${missingQueries.join(', ')}...` 
+            {missingItems.length > 0 
+              ? `Searching for your missing ${missingItems.map(i => i.query).join(', ')}...` 
               : `Synthesizing ${selectedDressCode} matches via Custom Search...`}
           </p>
         </div>
@@ -1288,7 +1305,7 @@ function CommerceView({
             </a>
           ) : (
             <button 
-               onClick={() => fetchAllRecommendations(missingQueries.length > 0 ? missingQueries : [`${selectedDressCode} trendy outfit pieces`])}
+               onClick={() => fetchAllRecommendations(missingItems.length > 0 ? missingItems : [{query: `${selectedDressCode} trendy outfit pieces`}])}
                className="bg-red-600 text-white px-6 py-3 rounded-xl uppercase font-black tracking-widest text-xs hover:bg-red-700 transition shadow-lg shadow-red-600/20"
             >
                Retry Fetch
@@ -1297,19 +1314,21 @@ function CommerceView({
         </div>
       ) : recommendations.length > 0 ? (
         <div className="space-y-8">
-           {missingQueries.length > 0 && (
+           {missingItems.length > 0 && (
              <div className="flex items-center gap-4 bg-black/5 dark:bg-white/5 p-4 rounded-2xl border border-black/5 dark:border-white/5">
                 <div className="w-10 h-10 rounded-full bg-red-600/20 flex items-center justify-center text-red-600">
                   <Filter size={18} />
                 </div>
                 <div>
                   <p className="text-[10px] font-black uppercase tracking-widest text-red-500">Active Gap Analysis</p>
-                  <p className="font-bold text-xs uppercase truncate max-w-sm">Target Queries: {missingQueries.join(' • ')}</p>
+                  <p className="font-bold text-xs uppercase truncate max-w-sm">Target Queries: {missingItems.map(i => i.query).join(' • ')}</p>
                 </div>
              </div>
            )}
            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
-             {recommendations.map((rec, idx) => (
+             {recommendations
+               .filter(rec => selectedFilter === "All" || rec.category === selectedFilter)
+               .map((rec, idx) => (
                 <a 
                   key={idx} 
                   href={rec.purchase_url}
@@ -1348,11 +1367,11 @@ function CommerceView({
         <div className="bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/5 p-20 rounded-[2.5rem] text-center space-y-6">
           <AlertCircle size={64} className="mx-auto text-black/10 dark:text-white/10" />
           <h3 className="text-2xl font-black uppercase italic">
-            {missingQueries.length > 0 ? "No Direct Matches Found" : "Wardrobe Complete"}
+            {missingItems.length > 0 ? "No Direct Matches Found" : "Wardrobe Complete"}
           </h3>
           <p className="text-black/40 dark:text-white/40 max-w-sm mx-auto font-medium">
-            {missingQueries.length > 0 
-              ? `We couldn't find exact retail matches for ${missingQueries.join(' or ')} at our primary partners right now. Try a different dress code or check back later.`
+            {missingItems.length > 0 
+              ? `We couldn't find exact retail matches for ${missingItems.map(i => i.query).join(' or ')} at our primary partners right now. Try a different dress code or check back later.`
               : "Your digital twin currently satisfies all generated style compositions. No external recommendations found."}
           </p>
         </div>
