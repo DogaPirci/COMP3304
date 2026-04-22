@@ -243,6 +243,7 @@ export default function App() {
 }
 
 function VogueVaultDashboard({ session }: { session: Session }) {
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [theme, setTheme] = useState<"dark" | "light">("dark");
   const [activeTab, setActiveTab] = useState<Tab>("Smart Commerce");
   const [closet, setCloset] = useState<ClothingItem[]>(initialCloset);
@@ -568,22 +569,53 @@ function VogueVaultDashboard({ session }: { session: Session }) {
           />
         </nav>
 
-        <div className="pt-8 border-t border-black/5 dark:border-white/5">
-          <div 
-             onClick={async () => { await supabase.auth.signOut(); window.location.reload(); }}
-             className="flex items-center gap-3 p-3 rounded-xl hover:bg-red-600/10 transition-colors cursor-pointer group"
-             title="Sign Out"
+        
+<div className="pt-8 border-t border-black/5 dark:border-white/5 relative">
+  
+  <AnimatePresence>
+    {isProfileOpen && (
+      <motion.div
+        initial={{ opacity: 0, y: 10, scale: 0.95 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: 10, scale: 0.95 }}
+        className="absolute bottom-full left-0 w-full mb-4 bg-white dark:bg-[#111] border border-black/10 dark:border-white/10 rounded-2xl shadow-2xl overflow-hidden z-50"
+      >
+        <div className="p-2 space-y-1">
+          <button className="w-full flex items-center gap-3 p-3 text-sm font-medium hover:bg-black/5 dark:hover:bg-white/5 rounded-xl transition-colors text-left">
+            <User size={16} /> <span>Profile Settings</span>
+          </button>
+          <button className="w-full flex items-center gap-3 p-3 text-sm font-medium hover:bg-black/5 dark:hover:bg-white/5 rounded-xl transition-colors text-left">
+            <LayoutGrid size={16} /> <span>Preferences</span>
+          </button>
+          
+          <div className="h-px bg-black/5 dark:bg-white/5 my-1" />
+          
+          <button 
+            onClick={async () => { await supabase.auth.signOut(); window.location.reload(); }}
+            className="w-full flex items-center gap-3 p-3 text-sm font-bold text-red-500 hover:bg-red-500/10 rounded-xl transition-colors text-left"
           >
-            <div className="w-10 h-10 rounded-full bg-red-600 flex items-center justify-center text-white shadow-[0_0_15px_rgba(220,38,38,0.4)] shrink-0">
-              <User size={20} />
-            </div>
-            <div className="overflow-hidden">
-              <p className="text-sm font-bold truncate" title={session.user.email}>{session.user.email?.split('@')[0]}</p>
-              <p className="text-[10px] text-black/40 dark:text-white/40 uppercase tracking-widest group-hover:text-red-500 transition-colors">Sign Out Vault</p>
-            </div>
-          </div>
+            <X size={16} /> <span>Logout Vault</span>
+          </button>
         </div>
-      </aside>
+      </motion.div>
+    )}
+  </AnimatePresence>
+
+  <div 
+    onClick={() => setIsProfileOpen(!isProfileOpen)}
+    className={`flex items-center gap-3 p-3 rounded-xl transition-all cursor-pointer group ${isProfileOpen ? 'bg-black/5 dark:bg-white/5' : 'hover:bg-black/5 dark:hover:bg-white/5'}`}
+  >
+    <div className="w-10 h-10 rounded-full bg-red-600 flex items-center justify-center text-white shadow-[0_0_15px_rgba(220,38,38,0.4)] shrink-0">
+      <User size={20} />
+    </div>
+    <div className="overflow-hidden">
+      <p className="text-sm font-bold truncate">{session.user.email?.split('@')[0]}</p>
+      <p className="text-[10px] text-black/40 dark:text-white/40 uppercase tracking-widest group-hover:text-red-500 transition-colors">
+        {isProfileOpen ? 'Close Menu' : 'Manage Account'}
+      </p>
+    </div>
+  </div>
+</div>
 
       {/* Main Content */}
       <main className="flex-1 flex flex-col overflow-hidden relative z-10">
