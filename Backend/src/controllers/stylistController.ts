@@ -7,8 +7,8 @@ export const analyzeInspiration = async (req: Request, res: Response): Promise<v
     try {
         const { imageBase64, dressCode, closet } = req.body;
         
-        if (!imageBase64) {
-             res.status(400).json({ error: 'imageBase64 is required in the request body.' });
+        if (!imageBase64 && !dressCode) {
+             res.status(400).json({ error: 'Either imageBase64 or dressCode must be provided.' });
              return;
         }
 

@@ -19,7 +19,9 @@ import {
   ArrowUpRight,
   Loader2,
   Sun,
-  Moon
+  Moon,
+  Bookmark,
+  ChevronDown
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { GoogleGenAI, Type } from "@google/genai";
@@ -60,7 +62,7 @@ const initialCloset: ClothingItem[] = [];
 
 const categories: Category[] = ["Outerwear", "Tops", "Bottoms", "Shoes", "Accessories"];
 
-type Tab = "My Closet" | "Concept Stylist" | "Smart Commerce";
+type Tab = "My Closet" | "Concept Stylist" | "Smart Commerce" | "Saved Ensembles";
 
 // Helper to convert file to base64
 const fileToBase64 = (file: File): Promise<string> => {
@@ -249,6 +251,7 @@ function VogueVaultDashboard({ session }: { session: Session }) {
   const [isUploading, setIsUploading] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [inspirationImage, setInspirationImage] = useState<string | null>(null);
+  const [inspirationBase64, setInspirationBase64] = useState<string | null>(null);
   const [generatedOutfits, setGeneratedOutfits] = useState<OutfitComponent[][] | null>(null);
   const [missingQueries, setMissingQueries] = useState<string[]>([]);
   const [selectedFilter, setSelectedFilter] = useState<Category | "All">("All");
@@ -256,6 +259,8 @@ function VogueVaultDashboard({ session }: { session: Session }) {
   const [pendingCorrectionFile, setPendingCorrectionFile] = useState<File | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [isSavingOutfit, setIsSavingOutfit] = useState(false);
+  const [outfitSaved, setOutfitSaved] = useState(false);
 
   // NOTIFICATION SYSTEM
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
@@ -280,6 +285,29 @@ function VogueVaultDashboard({ session }: { session: Session }) {
     setNotifications(prev => [newNotif, ...prev]);
     setToastNotif(newNotif);
     setTimeout(() => setToastNotif(null), 3000);
+  };
+
+  const saveEnsemble = async (outfit: OutfitComponent[], outfitIndex: number) => {
+    setIsSavingOutfit(true);
+    try {
+      const payload = {
+        components: outfit,
+        inspiration_image: inspirationBase64 || null,
+      };
+      const { error } = await supabase.from('saved_outfits').insert({
+        user_id: session.user.id,
+        outfit_data: payload,
+        dress_code: selectedDressCode,
+      });
+      if (error) throw error;
+      setOutfitSaved(true);
+      addNotification('success', `✓ Ensemble saved to your vault!`);
+      setTimeout(() => setOutfitSaved(false), 2500);
+    } catch (err: any) {
+      addNotification('error', 'Could not save ensemble. Check DB permissions.');
+    } finally {
+      setIsSavingOutfit(false);
+    }
   };
 
   const incrementRequestCount = () => {
@@ -463,17 +491,26 @@ function VogueVaultDashboard({ session }: { session: Session }) {
       console.log(`[Inspiration] Analyzing new inspiration image: ${file.name}`);
       const imageUrl = URL.createObjectURL(file);
       setInspirationImage(imageUrl);
+      try {
+        const base64 = await fileToBase64(file);
+        setInspirationBase64(base64);
+      } catch (err) {
+        console.error("Failed to read image", err);
+      }
+    }
+  };
+
+  const generateOutfits = async () => {
       setGeneratedOutfits(null);
       setMissingQueries([]);
       setIsGenerating(true);
       
       try {
-        const base64 = await fileToBase64(file);
         const closetData = closet.map(i => ({ id: i.id, name: i.name, category: i.category }));
         const response = await fetch(`${API_BASE_URL}/api/inspiration`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ imageBase64: base64, dressCode: selectedDressCode, closet: closetData })
+          body: JSON.stringify({ imageBase64: inspirationBase64 || "", dressCode: selectedDressCode, closet: closetData })
         });
         
         if (!response.ok) {
@@ -514,7 +551,6 @@ function VogueVaultDashboard({ session }: { session: Session }) {
       } finally {
         setIsGenerating(false);
       }
-    }
   };
 
   return (
@@ -565,6 +601,12 @@ function VogueVaultDashboard({ session }: { session: Session }) {
             label="Smart Commerce" 
             active={activeTab === "Smart Commerce"} 
             onClick={() => setActiveTab("Smart Commerce")} 
+          />
+          <SidebarItem 
+            icon={<Bookmark size={18} />} 
+            label="Saved Ensembles" 
+            active={activeTab === "Saved Ensembles"} 
+            onClick={() => setActiveTab("Saved Ensembles")} 
           />
         </nav>
 
@@ -707,6 +749,7 @@ function VogueVaultDashboard({ session }: { session: Session }) {
                   inspirationImage={inspirationImage}
                   setInspirationImage={setInspirationImage}
                   handleInspirationUpload={handleInspirationUpload}
+                  generateOutfits={generateOutfits}
                   outfits={generatedOutfits}
                   missingQueries={missingQueries}
                   setMissingQueries={setMissingQueries}
@@ -715,6 +758,9 @@ function VogueVaultDashboard({ session }: { session: Session }) {
                   selectedDressCode={selectedDressCode}
                   setSelectedDressCode={setSelectedDressCode}
                   setActiveTab={setActiveTab}
+                  onSaveEnsemble={saveEnsemble}
+                  isSavingOutfit={isSavingOutfit}
+                  outfitSaved={outfitSaved}
                 />
               )}
               {activeTab === "Smart Commerce" && (
@@ -725,6 +771,14 @@ function VogueVaultDashboard({ session }: { session: Session }) {
                   isRateLimited={isRateLimited}
                   setIsRateLimited={setIsRateLimited}
                   incrementRequestCount={incrementRequestCount}
+                  searchQuery={searchQuery}
+                />
+              )}
+              {activeTab === "Saved Ensembles" && (
+                <SavedEnsemblesView 
+                  session={session}
+                  closet={closet}
+                  searchQuery={searchQuery}
                 />
               )}
             </motion.div>
@@ -930,6 +984,7 @@ function StylistView({
   inspirationImage, 
   setInspirationImage, 
   handleInspirationUpload, 
+  generateOutfits,
   outfits, 
   missingQueries,
   setMissingQueries,
@@ -937,11 +992,15 @@ function StylistView({
   isGenerating,
   selectedDressCode,
   setSelectedDressCode,
-  setActiveTab
+  setActiveTab,
+  onSaveEnsemble,
+  isSavingOutfit,
+  outfitSaved
 }: {
   inspirationImage: string | null;
   setInspirationImage: (v: string | null) => void;
   handleInspirationUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  generateOutfits: () => void;
   outfits: OutfitComponent[][] | null;
   missingQueries: string[];
   setMissingQueries: React.Dispatch<React.SetStateAction<string[]>>;
@@ -950,92 +1009,123 @@ function StylistView({
   selectedDressCode: string;
   setSelectedDressCode: (v: string) => void;
   setActiveTab: (v: Tab) => void;
+  onSaveEnsemble: (outfit: OutfitComponent[], index: number) => void;
+  isSavingOutfit: boolean;
+  outfitSaved: boolean;
 }) {
   const inspoRef = useRef<HTMLInputElement>(null);
-  const dressCodes = ["Avant-Garde", "Minimalist", "Streetwear", "Formal", "Casual"];
+  const dressCodes = ["Avant-Garde", "Minimalist", "Streetwear", "Formal", "Casual", "Business Casual", "Old Money", "Y2K", "Bohemian", "Cyberpunk", "Athleisure", "Vintage", "Preppy"];
   const [activeOutfitIndex, setActiveOutfitIndex] = useState(0);
 
   useEffect(() => {
     setActiveOutfitIndex(0);
-    if (outfits && outfits.length > 0) {
-      const missing = outfits[0]
+  }, [outfits]);
+
+  useEffect(() => {
+    if (outfits && outfits.length > activeOutfitIndex) {
+      const missing = outfits[activeOutfitIndex]
         .filter((c: any) => c.missingItemQuery && c.missingItemQuery !== "null")
         .map((c: any) => c.missingItemQuery as string);
       setMissingQueries(missing);
     }
-  }, [outfits, setMissingQueries]);
+  }, [outfits, activeOutfitIndex, setMissingQueries]);
 
   return (
     <div className="max-w-5xl mx-auto space-y-16">
       <div className="text-center space-y-4">
         <h2 className="text-6xl font-black tracking-tighter uppercase italic">Style Matcher</h2>
-        <p className="text-black/40 dark:text-white/40 max-w-md mx-auto font-medium uppercase tracking-widest text-xs">Upload inspiration to generate outfits from your twin.</p>
-      </div>
-
-      <div className="flex justify-center gap-3 flex-wrap">
-        {dressCodes.map(code => (
-          <button
-            key={code}
-            onClick={() => setSelectedDressCode(code)}
-            className={`px-6 py-2 rounded-full text-[10px] font-black uppercase tracking-widest transition-all border ${
-              selectedDressCode === code
-                ? 'bg-black dark:bg-white text-white dark:text-black border-black dark:border-white'
-                : 'bg-black/5 dark:bg-white/5 border-black/5 dark:border-white/5 text-black/40 dark:text-white/40 hover:border-black/20 dark:hover:border-white/20'
-            }`}
-          >
-            {code}
-          </button>
-        ))}
+        <p className="text-black/40 dark:text-white/40 max-w-md mx-auto font-medium uppercase tracking-widest text-xs">Generate intelligent combinations purely from your chosen style, or upload an optional inspiration photo.</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start">
-        {/* Inspiration Upload */}
-        <div className="space-y-6">
-          <div className="flex items-center gap-4 mb-4">
-            <div className="w-8 h-8 rounded-full bg-red-600 flex items-center justify-center text-white font-black italic">01</div>
-            <h3 className="text-xl font-black uppercase italic">Inspiration Source</h3>
-          </div>
-          
-          <div 
-            onClick={() => inspoRef.current?.click()}
-            className={`aspect-[4/5] rounded-[2.5rem] border-2 border-dashed transition-all cursor-pointer flex flex-col items-center justify-center p-8 group overflow-hidden relative ${
-              inspirationImage ? 'border-red-600/50 bg-black/5 dark:bg-white/5' : 'border-black/10 dark:border-white/10 hover:border-red-600/50 hover:bg-black/5 dark:hover:bg-white/5'
-            }`}
-          >
-            <input type="file" ref={inspoRef} className="hidden" accept="image/*" onChange={handleInspirationUpload} />
-            
-            {inspirationImage ? (
-              <>
-                <img src={inspirationImage} className="absolute inset-0 w-full h-full object-cover opacity-60" alt="Inspiration" />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent"></div>
-                <div className="relative z-10 text-center">
-                  <Camera size={48} className="mx-auto mb-4 text-red-600" />
-                  <p className="font-black uppercase tracking-widest text-xs text-white">Change Inspiration</p>
-                </div>
-                <button 
-                  onClick={(e) => { e.stopPropagation(); setInspirationImage(null); }}
-                  className="absolute top-6 right-6 w-10 h-10 rounded-full bg-black/50 backdrop-blur flex items-center justify-center hover:bg-red-600 transition-colors text-white"
+        {/* Style Selection & Generation Controls */}
+        <div className="space-y-8">
+          <div className="space-y-6">
+            <div className="flex items-center gap-4 mb-2">
+              <div className="w-8 h-8 rounded-full bg-red-600 flex items-center justify-center text-white font-black italic">01</div>
+              <h3 className="text-xl font-black uppercase italic">Choose Style Code</h3>
+            </div>
+            <div className="w-full">
+              <div className="relative">
+                <select
+                  value={selectedDressCode}
+                  onChange={(e) => setSelectedDressCode(e.target.value)}
+                  className="w-full appearance-none bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 rounded-2xl px-6 py-4 font-black uppercase tracking-widest text-sm focus:outline-none focus:border-red-600 transition-colors cursor-pointer text-black dark:text-white"
                 >
-                  <X size={20} />
-                </button>
-              </>
-            ) : (
-              <>
-                <div className="w-20 h-20 rounded-full bg-black/5 dark:bg-white/5 flex items-center justify-center text-black/20 dark:text-white/20 group-hover:bg-red-600 group-hover:text-white transition-all mb-6">
-                  <Upload size={32} />
+                  {dressCodes.map(code => (
+                    <option key={code} value={code} className="bg-white dark:bg-[#111] text-black dark:text-white">
+                      {code}
+                    </option>
+                  ))}
+                </select>
+                <div className="absolute right-6 top-1/2 -translate-y-1/2 pointer-events-none text-red-600">
+                  <ChevronDown size={20} />
                 </div>
-                <p className="font-black uppercase tracking-widest text-sm mb-2">Upload Inspiration Photo</p>
-                <p className="text-black/30 dark:text-white/30 text-xs font-medium">Drag & drop or click to browse</p>
-              </>
-            )}
+              </div>
+            </div>
           </div>
+
+          {/* Inspiration Upload */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-4 mb-2">
+              <div className="w-8 h-8 rounded-full bg-red-600 flex items-center justify-center text-white font-black italic">02</div>
+              <h3 className="text-xl font-black uppercase italic">Inspiration Source <span className="text-[10px] text-black/30 dark:text-white/30 tracking-widest">(Optional)</span></h3>
+            </div>
+            
+            <div 
+              onClick={() => inspoRef.current?.click()}
+              className={`h-80 rounded-3xl border-2 border-dashed transition-all cursor-pointer flex flex-col items-center justify-center p-4 group overflow-hidden relative ${
+                inspirationImage ? 'border-red-600/50 bg-black/5 dark:bg-white/5' : 'border-black/10 dark:border-white/10 hover:border-red-600/50 hover:bg-black/5 dark:hover:bg-white/5'
+              }`}
+            >
+              <input type="file" ref={inspoRef} className="hidden" accept="image/*" onChange={handleInspirationUpload} />
+              
+              {inspirationImage ? (
+                <>
+                  <img src={inspirationImage} className="absolute inset-0 w-full h-full object-contain p-2" alt="Inspiration" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent"></div>
+                  <div className="relative z-10 text-center">
+                    <Camera size={32} className="mx-auto mb-2 text-red-600" />
+                    <p className="font-black uppercase tracking-widest text-[10px] text-white">Change Inspiration</p>
+                  </div>
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); setInspirationImage(null); }}
+                    className="absolute top-4 right-4 w-8 h-8 rounded-full bg-black/50 backdrop-blur flex items-center justify-center hover:bg-red-600 transition-colors text-white"
+                  >
+                    <X size={16} />
+                  </button>
+                </>
+              ) : (
+                <>
+                  <div className="w-12 h-12 rounded-full bg-black/5 dark:bg-white/5 flex items-center justify-center text-black/20 dark:text-white/20 group-hover:bg-red-600 group-hover:text-white transition-all mb-4">
+                    <Upload size={24} />
+                  </div>
+                  <p className="font-black uppercase tracking-widest text-xs mb-1">Upload Photo</p>
+                  <p className="text-black/30 dark:text-white/30 text-[10px] font-medium text-center">Give the AI a visual target (Optional)</p>
+                </>
+              )}
+            </div>
+          </div>
+
+          <button
+            onClick={generateOutfits}
+            disabled={isGenerating || closet.length === 0}
+            className="w-full bg-red-600 text-white p-5 rounded-2xl text-lg font-black uppercase tracking-[0.2em] shadow-2xl shadow-red-600/20 hover:bg-red-700 hover:-translate-y-1 transition-all disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:bg-red-600 flex items-center justify-center gap-3"
+          >
+            {isGenerating ? <Loader2 size={24} className="animate-spin" /> : <Sparkles size={24} />}
+            {isGenerating ? "Synthesizing..." : "Generate Ensembles"}
+          </button>
+          
+          {closet.length === 0 && (
+             <p className="text-[10px] font-bold text-red-500 uppercase tracking-widest text-center">Upload items to your closet first</p>
+          )}
         </div>
 
         {/* AI Generation Result */}
         <div className="space-y-6">
           <div className="flex items-center gap-4 mb-4">
-            <div className="w-8 h-8 rounded-full bg-red-600 flex items-center justify-center text-white font-black italic">02</div>
-            <h3 className="text-xl font-black uppercase italic">Twin Matching</h3>
+            <div className="w-8 h-8 rounded-full bg-red-600 flex items-center justify-center text-white font-black italic">03</div>
+            <h3 className="text-xl font-black uppercase italic">Twin Matching Results</h3>
           </div>
 
           <div className="min-h-[400px] flex flex-col">
@@ -1063,9 +1153,9 @@ function StylistView({
                 />
               </div>
             ) : !outfits ? (
-              <div className="flex-1 bg-black/5 dark:bg-white/5 rounded-[2.5rem] border border-black/5 dark:border-white/5 flex flex-col items-center justify-center text-center p-10 space-y-4">
+              <div className="flex-1 bg-black/5 dark:bg-white/5 rounded-[2.5rem] border border-black/5 dark:border-white/5 flex flex-col items-center justify-center text-center p-10 space-y-4 min-h-[400px]">
                 <Sparkles size={48} className="text-black/10 dark:text-white/10" />
-                <p className="text-black/40 dark:text-white/40 font-bold uppercase tracking-widest text-xs">Waiting for inspiration...</p>
+                <p className="text-black/40 dark:text-white/40 font-bold uppercase tracking-widest text-xs">Awaiting generation command...</p>
               </div>
             ) : (
               <motion.div 
@@ -1074,21 +1164,23 @@ function StylistView({
                 className="space-y-8"
               >
                 {/* Outfit Selector */}
-                <div className="flex gap-2">
-                  {outfits.map((_, idx) => (
-                    <button
-                      key={idx}
-                      onClick={() => setActiveOutfitIndex(idx)}
-                      className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border ${
-                        activeOutfitIndex === idx
-                          ? 'bg-red-600 border-red-600 text-white'
-                          : 'bg-black/5 dark:bg-white/5 border-black/5 dark:border-white/5 text-black/40 dark:text-white/40 hover:border-black/20 dark:hover:border-white/20'
-                      }`}
-                    >
-                      Ensemble {idx + 1}
-                    </button>
-                  ))}
-                </div>
+                {outfits.length > 1 && (
+                  <div className="flex gap-2">
+                    {outfits.map((_, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => setActiveOutfitIndex(idx)}
+                        className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border ${
+                          activeOutfitIndex === idx
+                            ? 'bg-red-600 border-red-600 text-white'
+                            : 'bg-black/5 dark:bg-white/5 border-black/5 dark:border-white/5 text-black/40 dark:text-white/40 hover:border-black/20 dark:hover:border-white/20'
+                        }`}
+                      >
+                        Ensemble {idx + 1}
+                      </button>
+                    ))}
+                  </div>
+                )}
 
                 <div className="grid grid-cols-2 gap-4">
                   {outfits[activeOutfitIndex].map((comp, idx) => {
@@ -1141,11 +1233,25 @@ function StylistView({
                     </div>
                   </div>
                   <div className="flex gap-3">
-                    <button className="bg-black/5 dark:bg-white/5 text-black dark:text-white px-6 py-3 rounded-xl font-black uppercase tracking-widest text-xs hover:bg-black/10 dark:hover:bg-white/10 transition-all border border-black/10 dark:border-white/10">
-                      AR Try-On
-                    </button>
-                    <button className="bg-red-600 text-white px-6 py-3 rounded-xl font-black uppercase tracking-widest text-xs hover:bg-red-700 transition-all">
-                      Save Ensemble
+                    {!inspirationImage && (
+                      <button 
+                        onClick={generateOutfits}
+                        disabled={isGenerating}
+                        className="bg-black/5 dark:bg-white/5 text-black dark:text-white px-6 py-3 rounded-xl font-black uppercase tracking-widest text-xs hover:bg-black/10 dark:hover:bg-white/10 transition-all border border-black/10 dark:border-white/10 flex items-center gap-2"
+                      >
+                        <Sparkles size={14} /> Shuffle
+                      </button>
+                    )}
+                    <button
+                      onClick={() => onSaveEnsemble(outfits![activeOutfitIndex], activeOutfitIndex)}
+                      disabled={isSavingOutfit}
+                      className={`px-6 py-3 rounded-xl font-black uppercase tracking-widest text-xs transition-all disabled:opacity-60 ${
+                        outfitSaved
+                          ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/30'
+                          : 'bg-red-600 text-white hover:bg-red-700'
+                      }`}
+                    >
+                      {isSavingOutfit ? 'Saving...' : outfitSaved ? 'Saved ✓' : 'Save Ensemble'}
                     </button>
                   </div>
                 </div>
@@ -1172,7 +1278,8 @@ function CommerceView({
   addNotification, 
   isRateLimited, 
   setIsRateLimited, 
-  incrementRequestCount 
+  incrementRequestCount,
+  searchQuery
 }: { 
   missingQueries: string[]; 
   selectedDressCode: string;
@@ -1180,10 +1287,13 @@ function CommerceView({
   isRateLimited: boolean;
   setIsRateLimited: (v: boolean) => void;
   incrementRequestCount: () => void;
+  searchQuery: string;
 }) {
   const [recommendations, setRecommendations] = useState<(ProductRecommendation & { originalQuery?: string })[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(0);
+  const ITEMS_PER_PAGE = 4;
 
   const fetchAllRecommendations = async (queries: string[]) => {
     if (!queries || queries.length === 0) {
@@ -1192,6 +1302,7 @@ function CommerceView({
     }
     setIsLoading(true);
     setError(null);
+    setCurrentPage(0);
     try {
       let combinedRecs: any[] = [];
       for (const query of queries) {
@@ -1240,12 +1351,25 @@ function CommerceView({
   };
 
   useEffect(() => {
-  if (missingQueries.length > 0) {
-    fetchAllRecommendations(missingQueries);
-  } else {
-    setRecommendations([]);
-  }
-}, [missingQueries]);
+    if (searchQuery) {
+      fetchAllRecommendations([searchQuery]);
+    } else if (missingQueries.length > 0) {
+      fetchAllRecommendations(missingQueries);
+    } else {
+      setRecommendations([]);
+    }
+  }, [missingQueries, searchQuery]);
+
+  const activeQueries = searchQuery ? [searchQuery] : missingQueries;
+
+  const groupedRecs = activeQueries.map(q => ({
+    query: q,
+    items: recommendations.filter(r => r.originalQuery === q)
+  })).filter(g => g.items.length > 0);
+
+  const maxPage = groupedRecs.length > 0 
+    ? Math.max(0, Math.max(...groupedRecs.map(g => Math.ceil(g.items.length / ITEMS_PER_PAGE))) - 1)
+    : 0;
 
   return (
     <div className="space-y-12">
@@ -1261,9 +1385,11 @@ function CommerceView({
           <Loader2 size={64} className="mx-auto text-red-600 animate-spin" />
           <h3 className="text-2xl font-black uppercase italic">Curating Selections</h3>
           <p className="text-black/40 dark:text-white/40 max-w-sm mx-auto font-medium">
-            {missingQueries.length > 0 
-              ? `Searching for your missing ${missingQueries.join(', ')}...` 
-              : `Synthesizing ${selectedDressCode} matches via Custom Search...`}
+            {searchQuery 
+              ? `Manually searching for "${searchQuery}"...`
+              : missingQueries.length > 0 
+                ? `Searching for your missing ${missingQueries.join(', ')}...` 
+                : `Synthesizing ${selectedDressCode} matches via Custom Search...`}
           </p>
         </div>
       ) : error ? (
@@ -1295,68 +1421,357 @@ function CommerceView({
             </button>
           )}
         </div>
-      ) : recommendations.length > 0 ? (
+      ) : groupedRecs.length > 0 ? (
         <div className="space-y-8">
-           {missingQueries.length > 0 && (
-             <div className="flex items-center gap-4 bg-black/5 dark:bg-white/5 p-4 rounded-2xl border border-black/5 dark:border-white/5">
-                <div className="w-10 h-10 rounded-full bg-red-600/20 flex items-center justify-center text-red-600">
-                  <Filter size={18} />
-                </div>
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-widest text-red-500">Active Gap Analysis</p>
-                  <p className="font-bold text-xs uppercase truncate max-w-sm">Target Queries: {missingQueries.join(' • ')}</p>
-                </div>
-             </div>
-           )}
-           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
-             {recommendations.map((rec, idx) => (
-                <a 
-                  key={idx} 
-                  href={rec.purchase_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="bg-gray-50 dark:bg-[#0A0A0A] p-6 rounded-3xl border border-black/5 dark:border-white/5 flex flex-col justify-between group h-full hover:-translate-y-2 hover:border-red-600/50 transition-all duration-300 shadow-xl shadow-transparent hover:shadow-red-600/5"
-                >
-                   <div>
-                     <div className="aspect-[3/4] rounded-2xl overflow-hidden bg-gray-200 dark:bg-[#111] relative mb-4">
-                       <img 
-                         src={rec.image_url} 
-                         alt={rec.title} 
-                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" 
-                         referrerPolicy="no-referrer"
-                         onError={(e) => {
-                            (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1591047139829-d91aecb6caea?w=500';
-                         }}
-                       />
-                       <div className="absolute top-4 right-4 bg-black/50 backdrop-blur px-3 py-1 rounded-full text-[10px] font-black italic text-white shadow">
-                         {rec.price}
+           <div className="flex gap-8 overflow-x-auto pb-4 custom-scrollbar">
+             {groupedRecs.map((group, colIdx) => (
+               <div key={colIdx} className="min-w-[300px] flex-1 space-y-6">
+                 {/* Sticky Column Header */}
+                 <div className="sticky top-0 z-10 bg-white/90 dark:bg-[#050505]/90 backdrop-blur-md p-4 rounded-2xl border border-black/5 dark:border-white/5 flex items-center gap-3">
+                   <div className="w-8 h-8 rounded-full bg-red-600/20 flex items-center justify-center text-red-600 shrink-0">
+                     <Filter size={14} />
+                   </div>
+                   <div className="overflow-hidden">
+                     <p className="text-[9px] font-black uppercase tracking-widest text-red-500">Missing Item</p>
+                     <p className="font-bold text-xs uppercase truncate" title={group.query}>{group.query}</p>
+                   </div>
+                 </div>
+
+                 {/* Cards for Current Page */}
+                 <div className="space-y-6">
+                   {group.items.slice(currentPage * ITEMS_PER_PAGE, (currentPage + 1) * ITEMS_PER_PAGE).map((rec, idx) => (
+                     <a 
+                       key={idx} 
+                       href={rec.purchase_url}
+                       target="_blank"
+                       rel="noopener noreferrer"
+                       className="block bg-gray-50 dark:bg-[#0A0A0A] p-4 rounded-3xl border border-black/5 dark:border-white/5 group hover:-translate-y-1 hover:border-red-600/50 transition-all duration-300 shadow-xl shadow-transparent hover:shadow-red-600/5"
+                     >
+                       <div className="flex gap-4">
+                         <div className="w-24 h-32 rounded-2xl overflow-hidden bg-gray-200 dark:bg-[#111] relative shrink-0">
+                           <img 
+                             src={rec.image_url} 
+                             alt={rec.title} 
+                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" 
+                             referrerPolicy="no-referrer"
+                             onError={(e) => {
+                                (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1591047139829-d91aecb6caea?w=500';
+                             }}
+                           />
+                           <div className="absolute bottom-2 right-2 bg-black/50 backdrop-blur px-2 py-0.5 rounded-full text-[9px] font-black italic text-white shadow">
+                             {rec.price}
+                           </div>
+                         </div>
+                         <div className="flex flex-col justify-center flex-1 overflow-hidden">
+                           <h4 className="font-bold text-xs uppercase leading-snug line-clamp-2 mb-1 group-hover:text-red-600 transition-colors" title={rec.title}>{rec.title}</h4>
+                           <p className="text-[9px] font-black uppercase tracking-widest text-red-500 truncate mb-2">Via {rec.source}</p>
+                           <div className="w-fit text-[10px] uppercase font-black tracking-widest flex items-center gap-1 text-black/40 dark:text-white/40 group-hover:text-black dark:group-hover:text-white transition-colors">
+                             View <ArrowUpRight size={12} />
+                           </div>
+                         </div>
                        </div>
+                     </a>
+                   ))}
+                   {/* Empty placeholders if page doesn't have enough items */}
+                   {Array.from({ length: Math.max(0, ITEMS_PER_PAGE - group.items.slice(currentPage * ITEMS_PER_PAGE, (currentPage + 1) * ITEMS_PER_PAGE).length) }).map((_, i) => (
+                     <div key={`empty-${i}`} className="h-[160px] rounded-3xl border border-dashed border-black/10 dark:border-white/10 flex items-center justify-center opacity-50">
+                       <p className="text-[9px] uppercase tracking-widest text-black/30 dark:text-white/30 font-bold">End of Results</p>
                      </div>
-                     <h4 className="font-bold text-sm uppercase leading-snug line-clamp-2 mb-2 group-hover:text-red-600 transition-colors" title={rec.title}>{rec.title}</h4>
-                     <p className="text-[10px] font-black uppercase tracking-widest text-red-500 truncate mb-1">Via {rec.source}</p>
-                   </div>
-                   <div 
-                     className="mt-6 w-full bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 text-black dark:text-white py-3 rounded-xl font-black uppercase tracking-[0.1em] text-xs flex items-center justify-center gap-2 group-hover:bg-red-600 group-hover:text-white group-hover:border-red-600 transition-colors shadow-lg shadow-black/5 dark:shadow-white/5"
-                   >
-                     View Site <ArrowUpRight size={14} />
-                   </div>
-                </a>
+                   ))}
+                 </div>
+               </div>
              ))}
            </div>
+           
+           {/* Pagination */}
+           {maxPage > 0 && (
+             <div className="flex items-center justify-center gap-4 mt-8 pt-8 border-t border-black/5 dark:border-white/5">
+               <button 
+                 onClick={() => setCurrentPage(p => Math.max(0, p - 1))}
+                 disabled={currentPage === 0}
+                 className="px-6 py-2 rounded-full border border-black/10 dark:border-white/10 text-xs font-black uppercase tracking-widest hover:bg-black/5 dark:hover:bg-white/5 disabled:opacity-30 transition-colors"
+               >
+                 Prev
+               </button>
+               <div className="flex items-center gap-2">
+                 {Array.from({ length: maxPage + 1 }).map((_, i) => (
+                   <button
+                     key={i}
+                     onClick={() => setCurrentPage(i)}
+                     className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-black transition-colors ${
+                       currentPage === i ? 'bg-red-600 text-white' : 'text-black/40 dark:text-white/40 hover:bg-black/5 dark:hover:bg-white/5'
+                     }`}
+                   >
+                     {i + 1}
+                   </button>
+                 ))}
+               </div>
+               <button 
+                 onClick={() => setCurrentPage(p => Math.min(maxPage, p + 1))}
+                 disabled={currentPage === maxPage}
+                 className="px-6 py-2 rounded-full border border-black/10 dark:border-white/10 text-xs font-black uppercase tracking-widest hover:bg-black/5 dark:hover:bg-white/5 disabled:opacity-30 transition-colors"
+               >
+                 Next
+               </button>
+             </div>
+           )}
         </div>
       ) : (
         <div className="bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/5 p-20 rounded-[2.5rem] text-center space-y-6">
           <AlertCircle size={64} className="mx-auto text-black/10 dark:text-white/10" />
           <h3 className="text-2xl font-black uppercase italic">
-            {missingQueries.length > 0 ? "No Direct Matches Found" : "Wardrobe Complete"}
+            {searchQuery ? "No Results Found" : missingQueries.length > 0 ? "No Direct Matches Found" : "Wardrobe Complete"}
           </h3>
           <p className="text-black/40 dark:text-white/40 max-w-sm mx-auto font-medium">
-            {missingQueries.length > 0 
-              ? `We couldn't find exact retail matches for ${missingQueries.join(' or ')} at our primary partners right now. Try a different dress code or check back later.`
-              : "Your digital twin currently satisfies all generated style compositions. No external recommendations found."}
+            {searchQuery
+              ? `No retail matches found for "${searchQuery}". Try a different keyword.`
+              : missingQueries.length > 0 
+                ? `We couldn't find exact retail matches for ${missingQueries.join(' or ')} at our primary partners right now. Try a different dress code or check back later.`
+                : "Your digital twin currently satisfies all generated style compositions. No external recommendations found."}
           </p>
         </div>
       )}
+    </div>
+  );
+}
+
+function SavedEnsemblesView({ session, closet, searchQuery }: { session: Session; closet: ClothingItem[]; searchQuery: string; }) {
+  const [savedOutfits, setSavedOutfits] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedOutfit, setSelectedOutfit] = useState<any | null>(null);
+  const [activeSubTab, setActiveSubTab] = useState<"Concept Creations" | "Inspired Matches">("Concept Creations");
+
+  useEffect(() => {
+    const fetchSavedOutfits = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('saved_outfits')
+          .select('*')
+          .eq('user_id', session.user.id)
+          .order('created_at', { ascending: false });
+        
+        if (!error && data) {
+          setSavedOutfits(data);
+        }
+      } catch (err) {
+        console.error("Fetch saved outfits failed", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchSavedOutfits();
+  }, [session.user.id]);
+
+  const conceptOutfits = savedOutfits.filter(o => !o.outfit_data?.inspiration_image);
+  const inspiredOutfits = savedOutfits.filter(o => o.outfit_data?.inspiration_image);
+
+  let displayOutfits = activeSubTab === "Concept Creations" ? conceptOutfits : inspiredOutfits;
+
+  if (searchQuery) {
+    const q = searchQuery.toLowerCase();
+    displayOutfits = displayOutfits.filter(o => {
+      const matchesDressCode = o.dress_code?.toLowerCase().includes(q);
+      const components = Array.isArray(o.outfit_data) ? o.outfit_data : o.outfit_data?.components || [];
+      const matchesCategory = components.some((c: any) => 
+        c.category?.toLowerCase().includes(q) || 
+        c.missingItemQuery?.toLowerCase().includes(q)
+      );
+      return matchesDressCode || matchesCategory;
+    });
+  }
+
+  return (
+    <div className="space-y-12">
+      <div className="flex flex-col md:flex-row md:justify-between md:items-end gap-6">
+        <div>
+          <h2 className="text-5xl font-black tracking-tighter uppercase italic">Saved Ensembles</h2>
+          <p className="text-black/40 dark:text-white/40 mt-2 font-medium uppercase tracking-widest text-xs">Your personal style vault of generated combinations.</p>
+        </div>
+        
+        <div className="flex gap-2 p-1 bg-black/5 dark:bg-white/5 rounded-2xl w-fit">
+          <button 
+            onClick={() => setActiveSubTab("Concept Creations")}
+            className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+              activeSubTab === "Concept Creations" 
+                ? 'bg-white dark:bg-[#111] shadow-lg text-black dark:text-white' 
+                : 'text-black/40 dark:text-white/40 hover:text-black dark:hover:text-white'
+            }`}
+          >
+            Concept Creations
+          </button>
+          <button 
+            onClick={() => setActiveSubTab("Inspired Matches")}
+            className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+              activeSubTab === "Inspired Matches" 
+                ? 'bg-white dark:bg-[#111] shadow-lg text-black dark:text-white' 
+                : 'text-black/40 dark:text-white/40 hover:text-black dark:hover:text-white'
+            }`}
+          >
+            Inspired Matches
+          </button>
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="flex justify-center p-20">
+          <Loader2 size={48} className="animate-spin text-red-600" />
+        </div>
+      ) : displayOutfits.length === 0 ? (
+        <div className="bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/5 p-20 rounded-[2.5rem] text-center space-y-6">
+          <Bookmark size={64} className="mx-auto text-black/10 dark:text-white/10" />
+          <h3 className="text-2xl font-black uppercase italic">No Ensembles Found</h3>
+          <p className="text-black/40 dark:text-white/40 max-w-sm mx-auto font-medium">
+            Generate and save outfits in the Concept Stylist to see them here.
+          </p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+          {displayOutfits.map((saved) => {
+            const components = Array.isArray(saved.outfit_data) ? saved.outfit_data : saved.outfit_data?.components || [];
+            const inspirationImage = saved.outfit_data?.inspiration_image;
+
+            return (
+            <div 
+              key={saved.id}
+              onClick={() => setSelectedOutfit(saved)}
+              className="bg-gray-50 dark:bg-[#0A0A0A] p-6 rounded-3xl border border-black/5 dark:border-white/5 cursor-pointer group hover:-translate-y-2 hover:border-red-600/50 transition-all duration-300 shadow-xl shadow-transparent hover:shadow-red-600/5 relative overflow-hidden flex flex-col"
+            >
+              {activeSubTab === "Inspired Matches" && inspirationImage ? (
+                <div className="aspect-[4/5] w-full rounded-2xl overflow-hidden mb-6 relative">
+                  <img src={`data:image/jpeg;base64,${inspirationImage}`} alt="Inspiration" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent flex flex-col justify-end p-4 text-white">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-red-500 mb-1">Inspired By</p>
+                    <h3 className="text-lg font-black uppercase italic truncate">{saved.dress_code || "Generated Look"}</h3>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-red-600/5 rounded-bl-full -z-10 group-hover:scale-150 transition-transform duration-700"></div>
+                  
+                  <div className="flex justify-between items-start mb-6">
+                    <div>
+                      <h3 className="text-xl font-black uppercase italic tracking-tight group-hover:text-red-600 transition-colors">{saved.dress_code || "Generated Look"}</h3>
+                      <p className="text-[10px] font-bold text-black/40 dark:text-white/40 uppercase tracking-widest mt-1">
+                        {new Date(saved.created_at).toLocaleDateString()}
+                      </p>
+                    </div>
+                    <div className="w-10 h-10 rounded-full bg-white dark:bg-[#111] shadow-lg flex items-center justify-center text-red-600">
+                      <Bookmark size={18} fill="currentColor" />
+                    </div>
+                  </div>
+                </>
+              )}
+
+              <div className="flex -space-x-4 mb-4 mt-auto">
+                {components.slice(0, 3).map((comp: any, idx: number) => {
+                   const matchedItem = comp.matchedClosetItemId ? closet.find(i => i.id === comp.matchedClosetItemId) : null;
+                   return (
+                     <div key={idx} className="w-16 h-16 rounded-full border-4 border-gray-50 dark:border-[#0A0A0A] bg-gray-200 dark:bg-[#111] overflow-hidden shrink-0 shadow-md">
+                       {matchedItem ? (
+                         <img src={matchedItem.image} alt={matchedItem.name} className="w-full h-full object-cover" />
+                       ) : (
+                         <div className="w-full h-full flex items-center justify-center text-[8px] font-black uppercase text-red-500 bg-red-500/10">Missing</div>
+                       )}
+                     </div>
+                   );
+                })}
+                {components.length > 3 && (
+                  <div className="w-16 h-16 rounded-full border-4 border-gray-50 dark:border-[#0A0A0A] bg-black dark:bg-white text-white dark:text-black flex items-center justify-center text-xs font-black shadow-md z-10">
+                    +{components.length - 3}
+                  </div>
+                )}
+              </div>
+              
+              <p className="text-[10px] uppercase font-black tracking-widest text-black/40 dark:text-white/40 group-hover:text-black dark:group-hover:text-white transition-colors flex items-center gap-1 mt-2">
+                View Details <ArrowRight size={12} />
+              </p>
+            </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Outfit Detail Modal */}
+      <AnimatePresence>
+        {selectedOutfit && (
+          <motion.div 
+            initial={{ opacity: 0 }} 
+            animate={{ opacity: 1 }} 
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4"
+          >
+            <motion.div 
+              initial={{ scale: 0.95, y: 20 }} 
+              animate={{ scale: 1, y: 0 }} 
+              exit={{ scale: 0.95, y: 20 }}
+              className="bg-white dark:bg-[#111] p-8 rounded-[2.5rem] w-full max-w-3xl border border-black/10 dark:border-white/10 shadow-2xl max-h-[90vh] overflow-y-auto custom-scrollbar relative"
+            >
+              <button 
+                onClick={() => setSelectedOutfit(null)}
+                className="absolute top-6 right-6 w-10 h-10 rounded-full bg-black/5 dark:bg-white/5 flex items-center justify-center hover:bg-red-600 hover:text-white transition-colors text-black/60 dark:text-white/60"
+              >
+                <X size={20} />
+              </button>
+
+              <div className="mb-10 pr-12 flex gap-8">
+                {selectedOutfit.outfit_data?.inspiration_image && (
+                   <div className="w-32 h-40 rounded-2xl overflow-hidden shrink-0 shadow-xl">
+                      <img src={`data:image/jpeg;base64,${selectedOutfit.outfit_data.inspiration_image}`} className="w-full h-full object-cover" alt="Inspiration" />
+                   </div>
+                )}
+                <div>
+                  <p className="text-[10px] font-bold text-red-600 uppercase tracking-widest mb-2">Ensemble Details</p>
+                  <h3 className="text-4xl font-black uppercase italic tracking-tighter">{selectedOutfit.dress_code || "Generated Look"}</h3>
+                  <p className="text-xs font-medium text-black/40 dark:text-white/40 uppercase tracking-widest mt-2">
+                    Created on {new Date(selectedOutfit.created_at).toLocaleString()}
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
+                {(Array.isArray(selectedOutfit.outfit_data) ? selectedOutfit.outfit_data : selectedOutfit.outfit_data?.components || []).map((comp: any, idx: number) => {
+                  const matchedItem = comp.matchedClosetItemId ? closet.find(i => i.id === comp.matchedClosetItemId) : null;
+                  return (
+                    <div key={idx} className={`bg-gray-50 dark:bg-[#0A0A0A] p-4 rounded-3xl border ${matchedItem ? 'border-black/5 dark:border-white/5' : 'border-red-500/30 bg-red-500/5'} flex flex-col h-full`}>
+                      <div className="aspect-[3/4] rounded-2xl overflow-hidden bg-gray-200 dark:bg-[#111] mb-4 relative">
+                        {matchedItem ? (
+                          <img src={matchedItem.image} className="w-full h-full object-cover" alt={matchedItem.name} />
+                        ) : (
+                          <div className="w-full h-full flex flex-col items-center justify-center p-4 text-center">
+                             <ShoppingBag size={32} className="text-red-500 mb-2 opacity-50" />
+                             <span className="text-[10px] text-red-500 font-bold uppercase tracking-widest">Missing Piece</span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="mt-auto">
+                        <p className={`text-[9px] uppercase font-black tracking-widest mb-1 ${matchedItem ? 'text-black/50 dark:text-white/50' : 'text-red-500'}`}>{comp.category}</p>
+                        <h4 className="font-bold text-xs uppercase leading-tight line-clamp-2" title={matchedItem ? matchedItem.name : comp.missingItemQuery || "Missing"}>
+                          {matchedItem ? matchedItem.name : comp.missingItemQuery || "Requires Purchase"}
+                        </h4>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              
+              <div className="mt-10 pt-8 border-t border-black/5 dark:border-white/5 flex justify-end gap-4">
+                 <button 
+                   onClick={async () => {
+                     if(window.confirm("Bu kombini silmek istediğinize emin misiniz?")) {
+                        await supabase.from('saved_outfits').delete().eq('id', selectedOutfit.id);
+                        setSavedOutfits(prev => prev.filter(o => o.id !== selectedOutfit.id));
+                        setSelectedOutfit(null);
+                     }
+                   }}
+                   className="px-6 py-3 rounded-xl border border-red-600/30 text-red-600 font-black uppercase tracking-widest text-xs hover:bg-red-600 hover:text-white transition-all flex items-center gap-2"
+                 >
+                   <Trash2 size={16} /> Delete Ensemble
+                 </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
