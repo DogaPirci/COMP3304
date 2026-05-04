@@ -411,7 +411,7 @@ function VogueVaultDashboard({ session }: { session: Session }) {
   };
 
   const uploadImageToBackend = async (file: File) => {
-    console.log(`[Upload] Starting upload process for: ${file.name}`);
+    console.log(`[Upload] Starting upload process for new image file`);
     setIsUploading(true);
     setUploadProgress(10);
     try {
@@ -568,12 +568,12 @@ function VogueVaultDashboard({ session }: { session: Session }) {
   const handleInspirationUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      console.log(`[Inspiration] Analyzing new inspiration image: ${file.name}`);
-      const imageUrl = URL.createObjectURL(file);
-      setInspirationImage(imageUrl);
+      if (!file.type.startsWith('image/')) return;
+      console.log(`[Inspiration] Analyzing new inspiration image`);
       try {
         const base64 = await fileToBase64(file);
         setInspirationBase64(base64);
+        setInspirationImage(`data:${file.type};base64,${base64}`);
       } catch (err) {
         console.error("Failed to read image", err);
       }
