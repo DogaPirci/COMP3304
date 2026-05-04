@@ -2,6 +2,14 @@
 FROM node:20-alpine AS frontend-builder
 WORKDIR /app/Frontend
 
+# Accept build arguments from Render
+ARG VITE_SUPABASE_URL
+ARG VITE_SUPABASE_ANON_KEY
+
+# Set them as environment variables so Vite can embed them during build
+ENV VITE_SUPABASE_URL=$VITE_SUPABASE_URL
+ENV VITE_SUPABASE_ANON_KEY=$VITE_SUPABASE_ANON_KEY
+
 # Install frontend dependencies
 COPY Frontend/package*.json ./
 RUN npm install
