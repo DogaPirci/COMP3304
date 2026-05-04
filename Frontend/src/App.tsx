@@ -1292,7 +1292,7 @@ function StylistView({
               
               {inspirationImage ? (
                 <>
-                  <img src={inspirationImage} className="absolute inset-0 w-full h-full object-contain p-2" alt="Inspiration" />
+                  <img src={inspirationImage?.startsWith('blob:') || inspirationImage?.startsWith('data:') || inspirationImage?.startsWith('http') ? inspirationImage : ''} className="absolute inset-0 w-full h-full object-contain p-2" alt="Inspiration" />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent"></div>
                   <div className="relative z-10 text-center">
                     <Camera size={32} className="mx-auto mb-2 text-red-600" />
