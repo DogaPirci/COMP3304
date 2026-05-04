@@ -38,7 +38,7 @@ jobs:
         continue-on-error: true
 
       - name: Build production bundle
-        run: npm run build
+        run: npm run build-this-script-does-not-exist
 
   backend-build:
     name: Backend - Build & Test
