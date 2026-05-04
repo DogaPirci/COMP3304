@@ -1292,7 +1292,7 @@ function StylistView({
               
               {inspirationImage ? (
                 <>
-                  <img src={inspirationImage?.startsWith('blob:') || inspirationImage?.startsWith('data:') || inspirationImage?.startsWith('http') ? inspirationImage : ''} className="absolute inset-0 w-full h-full object-contain p-2" alt="Inspiration" />
+                  <img src={inspirationImage ? encodeURI(inspirationImage) : ''} className="absolute inset-0 w-full h-full object-contain p-2" alt="Inspiration" />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent"></div>
                   <div className="relative z-10 text-center">
                     <Camera size={32} className="mx-auto mb-2 text-red-600" />
@@ -1827,7 +1827,7 @@ function SavedEnsemblesView({ session, closet, searchQuery, requestConfirm, save
             >
               {activeSubTab === "Inspired Matches" && inspirationImage ? (
                 <div className="aspect-[4/5] w-full rounded-2xl overflow-hidden mb-6 relative">
-                  <img src={`data:image/jpeg;base64,${inspirationImage}`} alt="Inspiration" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
+                  <img src={encodeURI(`data:image/jpeg;base64,${inspirationImage}`)} alt="Inspiration" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent flex flex-col justify-end p-4 text-white">
                     <p className="text-[10px] font-black uppercase tracking-widest text-red-500 mb-1">Inspired By</p>
                     <h3 className="text-lg font-black uppercase italic truncate">{saved.dress_code || "Generated Look"}</h3>
@@ -1905,7 +1905,7 @@ function SavedEnsemblesView({ session, closet, searchQuery, requestConfirm, save
               <div className="mb-10 pr-12 flex gap-8">
                 {selectedOutfit.outfit_data?.inspiration_image && (
                    <div className="w-32 h-40 rounded-2xl overflow-hidden shrink-0 shadow-xl">
-                      <img src={`data:image/jpeg;base64,${selectedOutfit.outfit_data.inspiration_image}`} className="w-full h-full object-cover" alt="Inspiration" />
+                      <img src={encodeURI(`data:image/jpeg;base64,${selectedOutfit.outfit_data.inspiration_image}`)} className="w-full h-full object-cover" alt="Inspiration" />
                    </div>
                 )}
                 <div>
