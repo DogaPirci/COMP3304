@@ -10,7 +10,7 @@ export interface ProductRecommendation {
  * Interface for commerce providers to follow the Layered Architecture.
  */
 export interface CommerceProvider {
-    findProducts(searchQuery: string): Promise<ProductRecommendation[]>;
+    findProducts(searchQuery: string, preferredBrands?: string[]): Promise<ProductRecommendation[]>;
 }
 
 /**
@@ -19,8 +19,8 @@ export interface CommerceProvider {
 export abstract class CommerceFactory {
     public abstract createProvider(): CommerceProvider;
 
-    public async search(query: string): Promise<ProductRecommendation[]> {
+    public async search(query: string, preferredBrands?: string[]): Promise<ProductRecommendation[]> {
         const provider = this.createProvider();
-        return provider.findProducts(query);
+        return provider.findProducts(query, preferredBrands);
     }
 }

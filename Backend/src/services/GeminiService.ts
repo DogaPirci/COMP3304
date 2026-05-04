@@ -7,153 +7,204 @@ export interface ImageClassificationResult {
     confidence: number;
 }
 
+export interface OutfitRecommendation {
+    category: string;
+    matchedClosetItemId: string | null;
+    missingItemQuery: string | null;
+    reason?: string;
+    recommendation?: string;
+}
+
+export interface OutfitCombination {
+    outfits: OutfitRecommendation[][];
+}
+
+const HTTP_STATUS_NOT_FOUND = '404';
+const HTTP_STATUS_TOO_MANY_REQUESTS = '429';
+const DEFAULT_MIME_TYPE = 'image/jpeg';
+const JSON_REGEX = /\{[\s\S]*\}/;
+
 export class GeminiService {
-    private genAI: GoogleGenerativeAI;
-    private static cache: Map<string, any> = new Map();
+    private readonly generativeAIClient: GoogleGenerativeAI;
+    private static readonly responseCache: Map<string, unknown> = new Map();
+    private readonly fallbackModels = ['gemini-2.0-flash', 'gemini-flash-latest', 'gemini-2.5-flash'];
 
     constructor() {
         const apiKey = process.env.GEMINI_API_KEY || '';
+        this.validateApiKey(apiKey);
+        this.generativeAIClient = new GoogleGenerativeAI(apiKey);
+    }
+
+    private validateApiKey(apiKey: string): void {
         if (!apiKey) {
-            console.warn('GEMINI_API_KEY is not defined in environment variables.');
+            console.warn('GEMINI_API_KEY is missing from environment variables.');
         }
-        this.genAI = new GoogleGenerativeAI(apiKey);
     }
 
-    private readonly MODELS_TO_TRY = ['gemini-2.0-flash', 'gemini-flash-latest', 'gemini-2.5-flash'];
+    public async classifyImage(base64ImageString: string): Promise<ImageClassificationResult> {
+        let lastEncounteredError: Error | null = null;
 
-    public async classifyImage(imageBase64: string): Promise<ImageClassificationResult> {
-        let lastError: any = null;
-
-        for (const modelName of this.MODELS_TO_TRY) {
+        for (const targetModel of this.fallbackModels) {
             try {
-                const model = this.genAI.getGenerativeModel({ model: modelName });
-                
-                const base64Data = imageBase64.includes(',') ? imageBase64.split(',')[1] : imageBase64;
-                let mimeType = 'image/jpeg';
-                if (imageBase64.startsWith('data:')) {
-                    const match = imageBase64.match(/^data:([^;]+);base64,/);
-                    if (match) mimeType = match[1];
-                }
-
-                console.log(`Gemini SDK Request: Model=${modelName}, MimeType=${mimeType}`);
-
-                const prompt = "Classify this clothing item into a primary category: Outerwear, Tops, Bottoms, Shoes, or Accessories. Also, provide a brief, descriptive name for the item (e.g., 'Black Denim Jacket' or 'White Silk Blouse'). Provide a confidence level between 0 and 1. Return ONLY valid JSON in the format: {\"category\": \"string\", \"name\": \"string\", \"confidence\": 0.0}";
-                const imagePart = { inlineData: { data: base64Data, mimeType } };
-
-                const result = await model.generateContent([prompt, imagePart]);
-                const responseText = result.response.text();
-                
-                console.log(`Gemini SDK Response (${modelName}):`, responseText);
-
-                const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-                if (!jsonMatch) throw new Error("Failed to parse JSON from AI response.");
-                const parsed = JSON.parse(jsonMatch[0]);
-
-                return {
-                    category: parsed.category || "Unknown",
-                    name: parsed.name || "Clothing Item",
-                    confidence: typeof parsed.confidence === 'number' ? parsed.confidence : 0,
-                };
+                return await this.attemptClassificationWithModel(targetModel, base64ImageString);
             } catch (error: any) {
-                console.error(`Gemini Error with ${modelName}:`, error.message);
-                lastError = error;
-                if (error.message.includes('404')) continue; // Try next model if 404
-                if (error.message.includes('429')) continue; // Try next model if 429
-                break; // Stop for other errors
-            }
-        }
-        
-        throw new Error(`Gemini API failed after trying all models. Last error: ${lastError?.message}`);
-    }
-
-    public async analyzeInspirationImage(imageBase64: string | null, dressCode: string, closetMetadata: string): Promise<any> {
-        // Build Cache Key
-        const hashInput = `${imageBase64 || 'no_image'}_${dressCode}_${closetMetadata}`;
-        const cacheKey = crypto.createHash('md5').update(hashInput).digest('hex');
-        
-        if (GeminiService.cache.has(cacheKey)) {
-            console.log(`[GeminiService] Returning CACHED response for key: ${cacheKey}`);
-            return GeminiService.cache.get(cacheKey);
-        }
-
-        let lastError: any = null;
-
-        for (const modelName of this.MODELS_TO_TRY) {
-            try {
-                const model = this.genAI.getGenerativeModel({ model: modelName });
-                const prompt = `You are an elite professional fashion stylist with deep expertise in color theory and style coherence.
-
-TASK: Generate outfit combinations for a "${dressCode}" aesthetic using the user's closet. ${imageBase64 ? "Analyze the inspiration photo provided and try to mimic its style." : "Rely entirely on your stylistic expertise for the requested dress code. MUST be exactly 1 perfect outfit."}
-
-USER'S CLOSET ITEMS (JSON):
-${closetMetadata}
-
-=== STRICT RULES — FOLLOW EXACTLY ===
-
-${imageBase64 ? `
-RULE 1 — QUANTITY & QUALITY:
-Generate between 1 and 3 outfits. NEVER force 3 outfits. Only include an outfit if it genuinely works stylistically.
-
-RULE 2 — MISSING ITEMS:
-If a crucial piece is missing to match the photo or style, you may set matchedClosetItemId to null and write a specific missingItemQuery (e.g., "black leather biker jacket").
-` : `
-RULE 1 — STRICT 1 OUTFIT & 100% CLOSET SOURCED:
-You MUST generate EXACTLY ONE (1) outfit. DO NOT generate 2 or 3 outfits.
-NO MISSING ITEMS ALLOWED. Every single category must use an existing item from the user's closet. matchedClosetItemId CANNOT be null. If you cannot find a perfect item, use the closest match available.
-
-RULE 2 — STRICT CONCEPT ADHERENCE:
-The outfit must perfectly match the "${dressCode}" concept. For example, if the concept is "Casual", DO NOT include any formal wear like dress pants or oxfords.
-`}
-
-RULE 3 — COLOR COHERENCE (CRITICAL):
-Before assigning a closet item to an outfit slot, verify that its color is compatible with the overall look. 
-- ALLOWED: navy blue jeans and dark blue jeans are similar enough tones.
-- NOT ALLOWED: purple jeans when the look calls for neutral/dark denim.
-
-RULE 4 — SELF-CONSISTENCY CHECK:
-Before outputting each outfit, mentally verify: "Does this complete look actually work as a ${dressCode} outfit?" If the answer is no or uncertain, drop it.
-
-OUTPUT FORMAT — Return ONLY valid JSON, no markdown, no explanation:
-{
-  "outfits": [
-    [
-      {
-        "category": "CategoryName",
-        "matchedClosetItemId": "item_id_string_or_null",
-        "missingItemQuery": ${imageBase64 ? `"specific_search_query_or_null"` : `null`}
-      }
-    ]
-  ]
-}
-The "outfits" array contains ${imageBase64 ? "1 to 3 arrays (one per outfit)" : "EXACTLY 1 array (the single outfit)"}. Each inner array has one object per clothing category needed for that look.`;
-
-                const contentParts: any[] = [prompt];
-                if (imageBase64) {
-                    const base64Data = imageBase64.includes(',') ? imageBase64.split(',')[1] : imageBase64;
-                    contentParts.push({ inlineData: { data: base64Data, mimeType: 'image/jpeg' } });
-                }
-
-                const result = await model.generateContent(contentParts);
-                const text = result.response.text();
-                
-                const jsonMatch = text.match(/\{[\s\S]*\}/);
-                if (!jsonMatch) throw new Error("Failed to parse JSON from AI response.");
-                
-                const parsedData = JSON.parse(jsonMatch[0]);
-                
-                // Save to Cache
-                GeminiService.cache.set(cacheKey, parsedData);
-                console.log(`[GeminiService] CACHED new response with key: ${cacheKey}`);
-                
-                return parsedData;
-            } catch (error: any) {
-                console.error(`Gemini Error with ${modelName}:`, error.message);
-                lastError = error;
-                if (error.message.includes('404') || error.message.includes('429')) continue;
+                this.logModelError(targetModel, error);
+                lastEncounteredError = error;
+                if (this.isRetryableError(error)) continue;
                 break;
             }
         }
         
-        throw new Error(`Gemini API failed after trying all models. Last error: ${lastError?.message}`);
+        throw new Error(`Image classification failed across all models. Last error: ${lastEncounteredError?.message}`);
+    }
+
+    private async attemptClassificationWithModel(modelName: string, base64ImageString: string): Promise<ImageClassificationResult> {
+        const aiModel = this.generativeAIClient.getGenerativeModel({ model: modelName });
+        const imagePart = this.buildImagePart(base64ImageString);
+        
+        const classificationPrompt = "Classify this clothing item into a primary category: Outerwear, Tops, Bottoms, Shoes, or Accessories. Also, provide a brief, descriptive name for the item (e.g., 'Black Denim Jacket' or 'White Silk Blouse'). Provide a confidence level between 0 and 1. Return ONLY valid JSON in the format: {\"category\": \"string\", \"name\": \"string\", \"confidence\": 0.0}";
+        
+        const generatedResult = await aiModel.generateContent([classificationPrompt, imagePart]);
+        return this.parseClassificationResponse(generatedResult.response.text());
+    }
+
+    private buildImagePart(base64ImageString: string): any {
+        const rawBase64Data = base64ImageString.includes(',') ? base64ImageString.split(',')[1] : base64ImageString;
+        const mimeType = this.extractMimeType(base64ImageString);
+        return { inlineData: { data: rawBase64Data, mimeType } };
+    }
+
+    private extractMimeType(base64ImageString: string): string {
+        if (!base64ImageString.startsWith('data:')) return DEFAULT_MIME_TYPE;
+        const mimeTypeMatch = base64ImageString.match(/^data:([^;]+);base64,/);
+        return mimeTypeMatch ? mimeTypeMatch[1] : DEFAULT_MIME_TYPE;
+    }
+
+    private parseClassificationResponse(responseText: string): ImageClassificationResult {
+        const extractedJsonString = this.extractJsonFromText(responseText);
+        const parsedData = JSON.parse(extractedJsonString);
+
+        return {
+            category: parsedData.category || "Unknown",
+            name: parsedData.name || "Clothing Item",
+            confidence: typeof parsedData.confidence === 'number' ? parsedData.confidence : 0,
+        };
+    }
+
+    private extractJsonFromText(text: string): string {
+        const jsonMatch = text.match(JSON_REGEX);
+        if (!jsonMatch) throw new Error("Could not locate valid JSON structure in the response.");
+        return jsonMatch[0];
+    }
+
+    private isRetryableError(error: Error): boolean {
+        return error.message.includes(HTTP_STATUS_NOT_FOUND) || error.message.includes(HTTP_STATUS_TOO_MANY_REQUESTS);
+    }
+
+    private logModelError(modelName: string, error: Error): void {
+        console.error(`Gemini Error [${modelName}]:`, error.message);
+    }
+
+    public async analyzeInspirationImage(base64ImageString: string | null, targetDressCode: string, userClosetDataJson: string): Promise<OutfitCombination> {
+        const cacheIdentifier = this.generateCacheKey(base64ImageString, targetDressCode, userClosetDataJson);
+        
+        if (this.hasCachedResponse(cacheIdentifier)) {
+            return this.getCachedResponse(cacheIdentifier) as OutfitCombination;
+        }
+
+        let lastEncounteredError: Error | null = null;
+
+        for (const targetModel of this.fallbackModels) {
+            try {
+                const generatedOutfit = await this.attemptStylingWithModel(targetModel, base64ImageString, targetDressCode, userClosetDataJson);
+                this.cacheResponse(cacheIdentifier, generatedOutfit);
+                return generatedOutfit;
+            } catch (error: any) {
+                this.logModelError(targetModel, error);
+                lastEncounteredError = error;
+                if (this.isRetryableError(error)) continue;
+                break;
+            }
+        }
+        
+        throw new Error(`Styling generation failed across all models. Last error: ${lastEncounteredError?.message}`);
+    }
+
+    private generateCacheKey(base64ImageString: string | null, dressCode: string, closetData: string): string {
+        const uniqueString = `${base64ImageString || 'empty'}_${dressCode}_${closetData}`;
+        return crypto.createHash('md5').update(uniqueString).digest('hex');
+    }
+
+    private hasCachedResponse(key: string): boolean {
+        return GeminiService.responseCache.has(key);
+    }
+
+    private getCachedResponse(key: string): unknown {
+        console.log(`[GeminiService] Retrieved cached output for key: ${key}`);
+        return GeminiService.responseCache.get(key);
+    }
+
+    private cacheResponse(key: string, data: unknown): void {
+        GeminiService.responseCache.set(key, data);
+    }
+
+    private async attemptStylingWithModel(modelName: string, base64ImageString: string | null, dressCode: string, closetData: string): Promise<OutfitCombination> {
+        const aiModel = this.generativeAIClient.getGenerativeModel({ model: modelName });
+        const requestPayload = this.buildStylingPayload(base64ImageString, dressCode, closetData);
+        
+        const generatedResult = await aiModel.generateContent(requestPayload);
+        const extractedJsonString = this.extractJsonFromText(generatedResult.response.text());
+        return JSON.parse(extractedJsonString) as OutfitCombination;
+    }
+
+    private buildStylingPayload(base64ImageString: string | null, dressCode: string, closetData: string): any[] {
+        const stylistPrompt = this.createStylistPrompt(base64ImageString !== null, dressCode, closetData);
+        const payloadParts: any[] = [stylistPrompt];
+
+        if (base64ImageString) {
+            payloadParts.push(this.buildImagePart(base64ImageString));
+        }
+
+        return payloadParts;
+    }
+
+    private createStylistPrompt(hasInspirationImage: boolean, dressCode: string, closetData: string): string {
+        return `GÖREV: Sen profesyonel bir moda stilistisin. Kullanıcının gardırobundaki ürünler ile${hasInspirationImage ? ' ilham aldığı fotoğrafı (veya stili)' : ' istenen stili'} kıyaslayıp en iyi "${dressCode}" kombinini oluşturacaksın.
+
+EŞLEŞTİRME KURALLARI (Öncelik Sırasına Göre):
+1. Silüet ve Form Koruması: İlham fotoğrafındaki kıyafetin kesimi (Oversize, Slim-fit, Crop, Maxi vb.) neyse, gardıroptan ona en yakın kesimi seç. Kesim, renkten daha önemlidir.
+2. Doku ve Materyal Uyumu: Deri bir parçanın yarattığı "sert/asi" havayı bez bir çanta ile bozma. Eğer deri yoksa, dokusu ağır duran (süet vb.) bir alternatif ara.
+3. Renk Teorisi (Esneklik Buradadır): Eğer gardıropta ilham fotoğrafındaki rengin aynısı yoksa; Analog renkleri (komşu renkler) veya Tamamlayıcı renkleri (zıt ama uyumlu) kullan.
+4. Vibe/Karakter Analizi: Bir parçanın karakteri kombinin ruhudur. Bunları düz/sade parçalarla değiştirme. Eğer gardıropta yoksa doğrudan e-ticaret linkine yönlendir.
+
+KARAR MEKANİZMASI:
+- %80 ve üzeri benzerlik: Gardıroptaki ürünü kullan. "Renk tonu biraz farklı ama stil aynı" diyerek açıkla.
+- %50-%80 arası benzerlik: "Stil uyuyor ama renk paletini şu şekilde güncelledim" diyerek gardıroptan öner.
+- %50 altı / Karakter uyuşmazlığı: Gardıropta benzer karakterde ürün yoksa (örneğin deri ceket yerine hırka vermen gerekiyorsa), bunu yapma! Doğrudan internetten (e-commerce) en yakın ürünü bulmak için \`matchedClosetItemId\` alanını \`null\` bırak ve \`missingItemQuery\` alanına eksik ürünü açıkla.
+
+GARDIROP VERİSİ (JSON):
+${closetData}
+
+KATI KURALLAR:
+${hasInspirationImage ? `
+- En az 1, en fazla 3 kombin üret. Zorlama kombin yapma.` : `
+- KESİNLİKLE SADECE 1 KOMBİN ÜRET.
+- EKSİK PARÇA OLAMAZ (\`missingItemQuery\` null olmalı).
+`}
+
+ÇIKTI FORMATI - Yalnızca geçerli JSON döndür, markdown KULLANMA:
+{
+  "outfits": [
+    [
+      {
+        "category": "Kategori Adı",
+        "matchedClosetItemId": "Seçilen parçanın ID'si veya null",
+        "missingItemQuery": "Eğer parça uyuşmuyorsa aranacak metin veya null",
+        "reason": "Neden seçtiğini moda kuralıyla açıkla: örn. 'Kesimi birebir uyuyor'",
+        "recommendation": "Tavsiye: örn. 'Pantolon açık renk olduğu için koyu kemerle dengele'"
+      }
+    ]
+  ]
+}`;
     }
 }

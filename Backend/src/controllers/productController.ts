@@ -17,15 +17,16 @@ const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
 
 export const getRecommendations = async (req: Request, res: Response): Promise<void> => {
     try {
-        const { searchQuery } = req.body;
+        const { searchQuery, preferredBrands } = req.body;
 
         if (!searchQuery) {
              res.status(400).json({ error: '"searchQuery" is required in the request body.' });
              return;
         }
 
-        // Create a unique key for this robust visual query combination
-        const cacheKey = searchQuery.toLowerCase().trim();
+        // Create a unique key for this robust visual query combination, including preferredBrands
+        const brandsKey = preferredBrands && preferredBrands.length > 0 ? preferredBrands.sort().join(',') : 'default';
+        const cacheKey = `${searchQuery.toLowerCase().trim()}_${brandsKey}`;
         const now = Date.now();
 
         // 1. Check the in-memory cache first
@@ -47,7 +48,7 @@ export const getRecommendations = async (req: Request, res: Response): Promise<v
         }
 
         // 2. Cache miss (or expired) -> call CommerceService
-        const recommendations = await commerceProvider.findProducts(searchQuery);
+        const recommendations = await commerceProvider.findProducts(searchQuery, preferredBrands);
 
         // 3. Save fresh result to cache
         product_cache.set(cacheKey, {
