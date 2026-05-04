@@ -1,109 +1,122 @@
-#  VogueVault: AI-Powered Online Closet
+# VogueVault: AI-Powered Digital Twin & Fashion Stylist 👗🤖
 
-**VogueVault** is an AI-powered digital wardrobe management system designed to bridge the gap between physical closets and digital convenience.
+VogueVault is an elite, AI-driven personal wardrobe management system and digital stylist. Built with modern web technologies, it allows users to digitize their physical closet and uses Google's Gemini AI to act as a professional fashion stylist.
+
+The AI stylist analyzes user uploads, categorizes them using Computer Vision, and generates highly curated outfits based on strict fashion rules including Silhouette & Form, Texture Matching, and Color Theory.
+
+## 🌟 Key Features
+
+1. **Digital Twin (My Closet):** Upload images of your clothing. Gemini AI automatically classifies items into categories (Outerwear, Tops, Bottoms, Shoes, Accessories) and assigns confidence scores. You can manually adjust categories if desired.
+2. **Professional AI Stylist:** A strictly-prompted, professional AI stylist that:
+   - Prioritizes silhouette/form matching over color.
+   - Respects texture and material vibes (e.g., matching leather with appropriate textures).
+   - Uses Color Theory (analogous and complementary colors) when exact color matches are missing.
+   - Refuses to suggest mismatched styles from your closet and instead suggests missing pieces via **Smart Commerce**.
+3. **Global Spotlight Search:** Instantly search across your closet, saved ensembles, and e-commerce partners via a unified, animated header dropdown.
+4. **Saved Ensembles:** Archive your favorite AI-generated outfits or inspiration-matched creations with dedicated styling notes.
+5. **Smart Commerce Integration:** Uses SerpApi to instantly find real-world purchase links (Zara, H&M, Mango, ASOS, Farfetch) for items missing from your digital closet to complete a look.
+
+## 🏗️ Architecture & Technology Stack
+
+The project strictly follows **Clean Code** principles, featuring guard clauses, constant variable encapsulation, and single responsibility across all backend services. 
+
+### Frontend
+- **React 18** + **TypeScript**
+- **Vite** (Build Tool)
+- **Framer Motion** (High-fidelity UI animations & Modals)
+- **Tailwind CSS** (Utility-first styling, Dark mode primary)
+- **Lucide React** (Iconography)
+
+### Backend
+- **Node.js** + **Express.js** + **TypeScript**
+- **Supabase** (PostgreSQL Database, Auth, Storage)
+- **Google Generative AI SDK (Gemini)** (Image classification & Stylist prompt engineering)
+- **SerpApi** (Retailer image & link scraping)
+- **Docker Compose** (Containerized Development & Deployment)
+
+## 🧠 AI Prompt Engineering
+
+The core value of VogueVault is its AI decision engine (`GeminiService.ts`). The model is prompted to act as an *Elite Fashion Stylist*. 
+- **>=80% Match:** The AI uses your closet item and explains its reasoning.
+- **50-80% Match:** The AI adapts the color palette to make it work.
+- **<50% Match:** The AI *will not* force a bad outfit. It leaves the item empty and provides a `missingItemQuery` so the Commerce Engine can find the exact missing piece online.
+
+## 🚀 Getting Started
+
+### Prerequisites
+- Docker & Docker Compose
+- Supabase Project (Database, Auth, Storage buckets: `closet_images`)
+- Google Gemini API Key
+- SerpApi Key
+
+### Installation
+
+1. Clone the repository.
+2. Configure environment variables in a `.env` file in both `Frontend` and `Backend` directories.
+   
+**Backend (`Backend/.env`)**
+```env
+PORT=3000
+GEMINI_API_KEY=your_gemini_key
+SERPAPI_KEY=your_serpapi_key
+```
+
+**Frontend (`Frontend/.env`)**
+```env
+VITE_SUPABASE_URL=your_supabase_url
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+```
+
+3. Run with Docker Compose:
+```bash
+docker compose up --build
+```
+4. Access the web app at `http://localhost:5173`.
+
+## 📜 Database Schema Requirements
+Execute the following SQL in your Supabase SQL Editor:
+
+```sql
+-- Closet Items
+CREATE TABLE closet_items (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  user_id UUID REFERENCES auth.users(id),
+  name TEXT,
+  category TEXT,
+  image TEXT,
+  confidence TEXT,
+  manually_changed BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Saved Outfits
+CREATE TABLE saved_outfits (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  user_id UUID REFERENCES auth.users(id),
+  dress_code TEXT,
+  outfit_data JSONB,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- User Profiles
+CREATE TABLE profiles (
+  id UUID REFERENCES auth.users(id) PRIMARY KEY,
+  full_name TEXT,
+  preferred_style TEXT,
+  onboarding_completed BOOLEAN DEFAULT FALSE,
+  favorite_brands TEXT[] DEFAULT '{}',
+  discovery_source TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+```
+
+## 🤝 Contributing
+Built according to Clean Code standards. When contributing, please ensure:
+- Functions follow the Single Responsibility Principle.
+- Avoid deep nesting (use Guard Clauses).
+- Keep boolean variables phrased as questions (e.g., `hasValidStylingRequest`).
+- No magic numbers. Use named constants.
 
 ---
-
-> [!TIP]
-> **New to the project?** Read our [Simple System Explainer](SYSTEM_EXPLAINER.md) to understand how the Frontend, Backend, and AI work together in plain English!
-
----
-
-##  1. Project Overview
-VogueVault creates a personalised digital twin of a user's physical wardrobe. Leveraging the power of the **Google Gemini Vision API** (using zero-shot classification without the need for custom model training), the system automatically categorises uploaded clothing items, suggests outfits based on specific dress codes, and helps users make more sustainable fashion choices.
-
-### The Core Problems We Solve:
-* **Decision Fatigue:** Users struggle to translate abstract dress codes (e.g., “Smart Casual”) into concrete outfits using the items they already own.
-* **Wardrobe Invisibility:** Physical wardrobes are often disorganised; items purchased months ago are easily forgotten, making it difficult for users to recall what they actually have.
-* **Inefficient Shopping:** Users frequently purchase items they already own because they do not remember their existing wardrobe while shopping.
-
-### Key Objectives:
-* **Reduce Decision Fatigue:** Help users quickly translate dress codes into concrete outfits from their own collection.
-* **Promote Sustainability:** Increase the utility of existing clothes to discourage unnecessary new purchases.
-* **Smart Organization:** Automatically tag and sort items by category, colour, and style without manual data entry.
-* **Visual Inspiration:** Allow users to upload "inspiration photos" and find the closest matching items within their own digital closet.
-
----
-
-##  2. Key Features
-* **Digital Closet Management:** Upload clothing photos and automatically categorise them using AI. Includes a manual correction feature if the AI's confidence score is low.
-* **Intelligent Concept Stylist:** Receive multiple outfit recommendations based on specific events and dress codes using AI visual reasoning.
-* **AI Visual Style Matcher:** Upload an inspiration photo to generate a style descriptor and find visually matching items from your own wardrobe.
-* **Smart Commerce Integration:** Detect missing items in an outfit and get real product recommendations with direct purchase links.
-* **Secure User Authentication:** Private and secure wardrobe data management using **Supabase Auth**.
-
----
-
-##  3. System Architecture & Software Engineering
-To ensure the application is robust and maintainable, VogueVault strictly adheres to modern software engineering principles:
-
-* **Layered (N-Tier) Architecture:** The system is divided into Presentation, Business Logic, AI & External Services, and Data & Infrastructure layers for modularity and scalability.
-* **Factory Method Design Pattern:** Applied in the Digital Closet Management module. When the Gemini Vision API classifies an image, a `DigitalClosetFactory` dynamically instantiates the correct object (e.g., Shirt, Trouser, Shoe), decoupling the API logic from concrete classes.
-
----
-
-##  4. Technologies Used
-| Category | Technology |
-| :--- | :--- |
-| **Frontend & API** | Vite + React (TypeScript) and Tailwind CSS |
-| **Database & Auth** | Supabase (PostgreSQL, Auth, and Storage) |
-| **AI & Search** | Google Gemini Vision API & SerpApi (Google Images) |
-| **Deployment** | Docker and Railway.app |
-
----
-
-##  5. 🐳 Running with Docker (Recommended)
-
-Docker ensures that everyone on the team has the exact same environment, avoiding "it works on my machine" issues.
-
-### 🛠️ If you don't have Docker installed yet:
-
-#### **Windows Users (Required Steps):**
-1.  **Download:** Download [Docker Desktop for Windows](https://www.docker.com/products/docker-desktop/).
-2.  **Install:** During installation, ensure **"Use WSL 2 instead of Hyper-V"** is checked.
-3.  **WSL 2 Update:** If prompted, follow the link to update your Linux Kernel.
-4.  **Restart:** Restart your computer after installation.
-5.  **Verify:** Open a terminal and type `docker --version`.
-
-#### **Mac/Linux Users:**
-*   **Mac:** Download [Docker Desktop for Mac](https://www.docker.com/products/docker-desktop/).
-*   **Linux:** Follow the [official engine installation guide](https://docs.docker.com/engine/install/).
-
----
-
-### 🚀 Getting Started
-
-1. **Clone the repository** (if you haven't already).
-2. **Environment Setup:**
-   Copy the template and fill in your API keys in `Backend/.env`:
-   ```bash
-   cp Backend/.env.example Backend/.env
-   ```
-3. **Start the System:**
-   Run this command from the **root directory**:
-   ```bash
-   docker compose up --build
-   ```
-4. **Access the Application:**
-   *   **Frontend:** [http://localhost:3000](http://localhost:3000)
-   *   **Backend API:** [http://localhost:5000](http://localhost:5000)
-
----
-
-### 💡 Useful Commands
-
-*   **Stop:** `docker compose down`
-*   **Restart after changes:** `docker compose up --build`
-*   **View Logs:** `docker compose logs -f`
-
----
-
-##  5. Team Information
-**Team:** ModaByte  
-**Course:** COMP 3304 — Fundamentals of Software Engineering  
-**Instructor:** Dr. Suphi Ucar
-
-* **Doga Pirci**
-* **Selin Sermet**
-* **Asli Goktalay**
-* **Arda Ceran**
+*Elevate your wardrobe digitally with VogueVault.*
