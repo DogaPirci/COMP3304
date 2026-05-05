@@ -7,9 +7,9 @@ on:
     branches: [ "main" ]
 
 jobs:
-  build-and-test:
+  backend-test:
+    name: Backend - Build & Test
     runs-on: ubuntu-latest
-
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -23,7 +23,7 @@ jobs:
       working-directory: ./Backend
       run: npm install
 
-    - name: Run Backend Tests and Check Coverage Threshold
+    - name: Run Backend Tests
       working-directory: ./Backend
       run: npm test
 
@@ -33,11 +33,41 @@ jobs:
         name: coverage-report
         path: Backend/coverage/
 
+  frontend-build:
+    name: Frontend - Build & Type Check
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Install Frontend Dependencies
+      working-directory: ./Frontend
+      run: npm install
+
+    - name: Build Frontend
+      working-directory: ./Frontend
+      run: npm run build
+
+  docker-build:
+    name: Docker Image Build
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Build Docker Image
+      run: docker build . -t voguevault:latest
+
   deploy:
-    needs: build-and-test
+    name: Deploy to Render
+    needs: [backend-test, frontend-build, docker-build]
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-
     steps:
       - name: Trigger Render Deploy
         run: |
