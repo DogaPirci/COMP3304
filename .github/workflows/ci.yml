@@ -25,7 +25,9 @@ jobs:
 
     - name: Run Backend Tests
       working-directory: ./Backend
-      run: npm test
+      run: |
+        npm test
+        node format-coverage.js
 
     - name: Upload Coverage Report
       uses: actions/upload-artifact@v4

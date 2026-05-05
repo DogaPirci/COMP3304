@@ -9,7 +9,7 @@ module.exports = {
     'src/services/**/*.ts',
     '!src/**/*.d.ts',
   ],
-  coverageReporters: ['text', 'html'],
+  coverageReporters: ['text', 'text-summary', 'html', 'json'],
   coverageThreshold: {
     global: {
       branches: 50,
